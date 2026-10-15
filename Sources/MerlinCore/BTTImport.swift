@@ -78,10 +78,10 @@ public enum BTTImport {
     /// Türkçe sınıf adı.
     public static func className(_ cls: String) -> String {
         let l = cls.lowercased()
-        if l.contains("touchpad") || l.contains("trackpad") { return "Trackpad" }
-        if l.contains("keyboard") { return "Klavye kısayolu" }
-        if l.contains("touchbar") { return "Touch Bar" }
-        return "Diğer tetikleyiciler"
+        if l.contains("touchpad") || l.contains("trackpad") { return MerlinText.t("Trackpad") }
+        if l.contains("keyboard") { return MerlinText.t("Klavye kısayolu") }
+        if l.contains("touchbar") { return MerlinText.t("Touch Bar") }
+        return MerlinText.t("Diğer tetikleyiciler")
     }
 
     // MARK: Ayrıştırma
@@ -113,18 +113,18 @@ public enum BTTImport {
             action = .middleClick
         }
         if let app {
-            reason = "Uygulamaya özel BTT atamaları elle eklenmeli (\(app))"
+            reason = MerlinText.f("Uygulamaya özel BTT atamaları elle eklenmeli (%@)", app)
         } else if let triggerReason {
             reason = triggerReason
         } else if action == nil {
-            reason = "Bu eylem henüz devralınamıyor ('\(actionName)')"
+            reason = MerlinText.f("Bu eylem henüz devralınamıyor ('%@')", actionName)
         }
         return BTTItem(id: id, description: desc, actionName: actionName, appName: app, enabled: enabled,
                        trigger: trigger, action: action, reason: reason)
     }
 
     private static func mapTrigger(_ desc: String) -> (Trigger?, String?) {
-        let unknown = "Bu hareket henüz devralınamıyor"
+        let unknown = MerlinText.t("Bu hareket henüz devralınamıyor")
         let l = desc.lowercased()
         guard let re = try? NSRegularExpression(
             pattern: #"^(\d+)\s*finger\s+(click|tap|double[- ]?tap|swipe\s+(up|down|left|right))$"#),
@@ -133,14 +133,14 @@ public enum BTTImport {
               let kr = Range(m.range(at: 2), in: l) else { return (nil, unknown) }
         let kind = String(l[kr])
         if kind == "click" {
-            if n == 1 { return (nil, "Tek parmakla tıklama normal sol tıklamadır") }
+            if n == 1 { return (nil, MerlinText.t("Tek parmakla tıklama normal sol tıklamadır")) }
             guard (2...4).contains(n) else { return (nil, unknown) }
             return (Trigger(kind: .press, fingers: n), nil)
         }
         guard (1...5).contains(n) else { return (nil, unknown) }
         if kind == "tap" { return (Trigger(kind: .tap, fingers: n), nil) }
         if kind.hasPrefix("double") { return (Trigger(kind: .doubleTap, fingers: n), nil) }
-        if n < 3 { return (nil, "Bir ve iki parmakla kaydırma macOS kaydırmasıdır") }
+        if n < 3 { return (nil, MerlinText.t("Bir ve iki parmakla kaydırma macOS kaydırmasıdır")) }
         let dir: SwipeDirection
         if let dr = Range(m.range(at: 3), in: l) {
             switch l[dr] {

@@ -58,6 +58,7 @@ public struct GestureRecognizer {
         var clicked = false
         var maxMove: Float = 0
         var firstZoneX: Float = 0
+        var firstZoneY: Float = 1
         var firstCentroid: (Float, Float)?
         var lastCentroid: (Float, Float)?
     }
@@ -150,7 +151,7 @@ public struct GestureRecognizer {
             s.seen.insert(p.id)
             s.origins[p.id] = (p.x, p.y)
             if t - s.start <= landingWindow {
-                if s.fingers == 0 { s.firstZoneX = p.x }
+                if s.fingers == 0 { s.firstZoneX = p.x; s.firstZoneY = p.y }
                 s.fingers += 1
                 s.firstCentroid = nil
             } else {
@@ -172,7 +173,7 @@ public struct GestureRecognizer {
     private mutating func finish(_ s: Session, end: Double, into out: inout [RecognizedGesture]) {
         guard !s.invalid, !s.clicked, s.fingers > 0 else { return }
         if end - s.start <= tapMaxDuration && s.maxMove < tapMaxMove {
-            let zone: Zone = s.fingers == 1 ? Zone.classify(x: s.firstZoneX, y: 1, layout: layout) : .any
+            let zone: Zone = s.fingers == 1 ? Zone.classify(x: s.firstZoneX, y: s.firstZoneY, layout: layout) : .any
             registerTap(fingers: s.fingers, zone: zone, start: s.start, end: end, into: &out)
             return
         }

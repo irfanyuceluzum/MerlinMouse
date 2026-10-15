@@ -112,14 +112,14 @@ struct MMStatusBadge: View {
 
     private var spec: (text: String, icon: String, bg: Color, fg: Color, border: Color?) {
         switch kind {
-        case .free: return ("Serbest", "checkmark", MM.accentSoft, MM.accentText, nil)
-        case .macOS: return ("macOS ile çakışıyor", "exclamationmark.triangle", MM.card, MM.warnText, MM.warnLine)
+        case .free: return (L("Serbest"), "checkmark", MM.accentSoft, MM.accentText, nil)
+        case .macOS: return (L("macOS ile çakışıyor"), "exclamationmark.triangle", MM.card, MM.warnText, MM.warnLine)
         case .btt: return ("BetterTouchTool", "arrow.left.arrow.right", MM.bttBg, MM.bttText, nil)
-        case .caution: return ("Dikkat", "exclamationmark", MM.warnBg, MM.warnText, nil)
-        case .blocked: return ("Ayrılmış", "lock", MM.neuBg, MM.neuText, nil)
-        case .disabled: return ("Kapalı", "power", MM.neuBg, MM.neuText, nil)
-        case .replacesDisabled: return ("Kapalı ataması var", "arrow.triangle.2.circlepath", MM.neuBg, MM.neuText, nil)
-        case .shadows: return ("Genel atamayı ezer", "square.stack.3d.up", MM.accentSoft, MM.accentText, nil)
+        case .caution: return (L("Dikkat"), "exclamationmark", MM.warnBg, MM.warnText, nil)
+        case .blocked: return (L("Ayrılmış"), "lock", MM.neuBg, MM.neuText, nil)
+        case .disabled: return (L("Kapalı"), "power", MM.neuBg, MM.neuText, nil)
+        case .replacesDisabled: return (L("Kapalı ataması var"), "arrow.triangle.2.circlepath", MM.neuBg, MM.neuText, nil)
+        case .shadows: return (L("Genel atamayı ezer"), "square.stack.3d.up", MM.accentSoft, MM.accentText, nil)
         }
     }
 
@@ -140,7 +140,7 @@ struct MMStatusBadge: View {
 /// Tasarımdaki 42×25 anahtar.
 struct MMSwitch: View {
     @Binding var isOn: Bool
-    var label: String = "Aç / kapat"
+    var label: String = L("Aç / kapat")
 
     var body: some View {
         Button { isOn.toggle() } label: {
@@ -155,7 +155,7 @@ struct MMSwitch: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
-        .accessibilityValue(isOn ? "Açık" : "Kapalı")
+        .accessibilityValue(isOn ? L("Açık") : L("Kapalı"))
     }
 }
 
@@ -287,13 +287,13 @@ struct MMBatteryBadge: View {
             }()
             HStack(spacing: 4) {
                 Image(systemName: BatteryAlertPolicy.symbolName(percent: percent)).font(.system(size: 12))
-                Text("%\(percent)").font(.system(size: 12, weight: .medium))
+                Text(LF("%%%lld", percent)).font(.system(size: 12, weight: .medium))
             }
             .foregroundStyle(color)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Pil yüzde \(percent)")
+            .accessibilityLabel(LF("Pil yüzde %lld", percent))
         } else {
-            Text("Pil —").font(.system(size: 12)).foregroundStyle(MM.text2)
+            Text(L("Pil —")).font(.system(size: 12)).foregroundStyle(MM.text2)
         }
     }
 }

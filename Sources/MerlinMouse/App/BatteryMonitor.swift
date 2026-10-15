@@ -57,8 +57,8 @@ final class BatteryMonitor: ObservableObject {
                 return
             }
             let content = UNMutableNotificationContent()
-            content.title = threshold <= 10 ? "Magic Mouse pili kritik: %\(percent)" : "Magic Mouse pili %\(percent)"
-            content.body = "Şarj etmeyi unutma; şarj sırasında fare kullanılamaz."
+            content.title = threshold <= 10 ? LF("Magic Mouse pili kritik: %%%lld", percent) : LF("Magic Mouse pili %%%lld", percent)
+            content.body = L("Şarj etmeyi unutma; şarj sırasında fare kullanılamaz.")
             content.sound = .default
             let request = UNNotificationRequest(identifier: "battery-\(threshold)", content: content, trigger: nil)
             center.add(request) { error in

@@ -12,11 +12,11 @@ public enum Zone: String, Codable, Hashable, CaseIterable {
     /// Arayüzde gösterilen ad.
     public var displayName: String {
         switch self {
-        case .any: return "Her yer"
-        case .left: return "Sol"
-        case .center: return "Orta"
-        case .right: return "Sağ"
-        case .rear: return "Arka (logo)"
+        case .any: return MerlinText.t("Her yer")
+        case .left: return MerlinText.t("Sol")
+        case .center: return MerlinText.t("Orta")
+        case .right: return MerlinText.t("Sağ")
+        case .rear: return MerlinText.t("Arka (logo)")
         }
     }
 }
@@ -66,50 +66,49 @@ public struct Trigger: Codable, Hashable {
 
     public var title: String {
         let t = normalized
-        let verb: String
-        switch t.kind {
-        case .press: verb = "bas"
-        case .hold: verb = "basılı tut"
-        case .tap: verb = "dokun"
-        case .doubleTap: verb = "çift dokun"
-        case .swipe:
-            switch t.direction {
-            case .up: verb = "yukarı kaydır"
-            case .down: verb = "aşağı kaydır"
-            case .left: verb = "sola kaydır"
-            case .right: verb = "sağa kaydır"
-            }
-        }
         if t.modifier != .none {
-            let name: String
+            // Tuşlu tetikler yalnız basma / basılı tutma olabilir (normalized).
+            let hold = t.kind == .hold
             switch t.modifier {
-            case .fn: name = "Fn"
-            case .option: name = "Option"
-            case .command: name = "Command"
-            case .shift: name = "Shift"
-            case .none: name = ""
+            case .fn: return hold ? MerlinText.t("Fn + basılı tut") : MerlinText.t("Fn + bas")
+            case .option: return hold ? MerlinText.t("Option + basılı tut") : MerlinText.t("Option + bas")
+            case .command: return hold ? MerlinText.t("Command + basılı tut") : MerlinText.t("Command + bas")
+            case .shift: return hold ? MerlinText.t("Shift + basılı tut") : MerlinText.t("Shift + bas")
+            case .none: break
             }
-            return "\(name) + \(verb)"
         }
-        let prefix: String
+        // Dil yapıları farklı olduğundan başlık, her tür için "%@" ön ifadeli tam cümle şablonudur.
+        let phrase: String
         if t.fingers == 1 {
             switch t.zone {
-            case .any: prefix = "Tek parmakla"
-            case .left: prefix = "Sol bölgeye"
-            case .center: prefix = "Orta bölgeye"
-            case .right: prefix = "Sağ bölgeye"
-            case .rear: prefix = "Arkaya"
+            case .any: phrase = MerlinText.t("Tek parmakla")
+            case .left: phrase = MerlinText.t("Sol bölgeye")
+            case .center: phrase = MerlinText.t("Orta bölgeye")
+            case .right: phrase = MerlinText.t("Sağ bölgeye")
+            case .rear: phrase = MerlinText.t("Arkaya")
             }
         } else {
             switch t.fingers {
-            case 0: prefix = "Herhangi bir parmakla"
-            case 2: prefix = "İki parmakla"
-            case 3: prefix = "Üç parmakla"
-            case 4: prefix = "Dört parmakla"
-            case 5: prefix = "Beş parmakla"
-            default: prefix = "\(t.fingers) parmakla"
+            case 0: phrase = MerlinText.t("Herhangi bir parmakla")
+            case 2: phrase = MerlinText.t("İki parmakla")
+            case 3: phrase = MerlinText.t("Üç parmakla")
+            case 4: phrase = MerlinText.t("Dört parmakla")
+            case 5: phrase = MerlinText.t("Beş parmakla")
+            default: phrase = MerlinText.f("%d parmakla", t.fingers)
             }
         }
-        return "\(prefix) \(verb)"
+        switch t.kind {
+        case .press: return MerlinText.f("%@ bas", phrase)
+        case .hold: return MerlinText.f("%@ basılı tut", phrase)
+        case .tap: return MerlinText.f("%@ dokun", phrase)
+        case .doubleTap: return MerlinText.f("%@ çift dokun", phrase)
+        case .swipe:
+            switch t.direction {
+            case .up: return MerlinText.f("%@ yukarı kaydır", phrase)
+            case .down: return MerlinText.f("%@ aşağı kaydır", phrase)
+            case .left: return MerlinText.f("%@ sola kaydır", phrase)
+            case .right: return MerlinText.f("%@ sağa kaydır", phrase)
+            }
+        }
     }
 }

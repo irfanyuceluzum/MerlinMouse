@@ -8,12 +8,12 @@ struct MainWindow: View {
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .gestures: return "Hareketler"
-            case .profiles: return "Uygulama profilleri"
-            case .scroll: return "Kaydırma"
-            case .system: return "Sistem hareketleri"
-            case .migration: return "BTT'den geçiş"
-            case .general: return "Genel"
+            case .gestures: return L("Hareketler")
+            case .profiles: return L("Uygulama profilleri")
+            case .scroll: return L("Kaydırma")
+            case .system: return L("Sistem hareketleri")
+            case .migration: return L("BTT'den geçiş")
+            case .general: return L("Genel")
             }
         }
         var icon: String {
@@ -34,13 +34,19 @@ struct MainWindow: View {
     @ObservedObject private var front = FrontApp.shared
     @ObservedObject private var store = BindingStore.shared
     @ObservedObject private var model = AppModel.shared
+    @ObservedObject private var settings = Settings.shared
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar
-            detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(MM.win)
+        // Dil değişince kenar çubuğu ve sayfa yeniden kurulur; seçili sayfa (`page`) korunur,
+        // yaşam döngüsü işleyicileri kapsayıcıya bağlı olduğundan yeniden tetiklenmez.
+        ZStack {
+            HStack(spacing: 0) {
+                sidebar
+                detail
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(MM.win)
+            }
+            .id(settings.language)
         }
         .frame(minWidth: 900, minHeight: 600)
         .background(MM.win)
@@ -91,7 +97,7 @@ struct MainWindow: View {
                         .fixedSize()
                         .background(MM.warnBg, in: Capsule())
                         .foregroundStyle(MM.warnText)
-                        .accessibilityLabel("\(system.onCount) açık")
+                        .accessibilityLabel(LF("%lld açık", system.onCount))
                 }
             }
             .foregroundStyle(selected ? MM.accentInk : MM.text)
@@ -109,14 +115,14 @@ struct MainWindow: View {
         return VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
                 Circle().fill(MM.okDot).frame(width: 7, height: 7)
-                Text(profile.map { "\($0.name) profili etkin" } ?? "Genel atamalar etkin")
+                Text(profile.map { LF("%@ profili etkin", $0.name) } ?? L("Genel atamalar etkin"))
                     .font(.system(size: 12, weight: .semibold)).foregroundStyle(MM.text)
             }
             if profile != nil {
-                Text("Öndeki uygulamadan algılandı").font(.system(size: 12)).foregroundStyle(MM.text2)
+                Text(L("Öndeki uygulamadan algılandı")).font(.system(size: 12)).foregroundStyle(MM.text2)
             }
             HStack(spacing: 6) {
-                Text("Magic Mouse").font(.system(size: 12)).foregroundStyle(MM.text2)
+                Text(verbatim: "Magic Mouse").font(.system(size: 12)).foregroundStyle(MM.text2)
                 MMBatteryBadge(percent: battery.percent)
             }
         }

@@ -35,7 +35,7 @@ enum AppPicker {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
-        panel.prompt = "Seç"
+        panel.prompt = L("Seç")
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
         let bundle = Bundle(url: url)
         let name = (bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String)
@@ -73,13 +73,13 @@ private enum EditorActionKind: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .middle: return "Orta tıklama"
-        case .back: return "Geri"
-        case .forward: return "İleri"
-        case .shortcut: return "Klavye kısayolu"
-        case .system: return "Sistem eylemi"
-        case .openApp: return "Uygulama aç"
-        case .runShortcut: return "Kestirme çalıştır"
+        case .middle: return L("Orta tıklama")
+        case .back: return L("Geri")
+        case .forward: return L("İleri")
+        case .shortcut: return L("Klavye kısayolu")
+        case .system: return L("Sistem eylemi")
+        case .openApp: return L("Uygulama aç")
+        case .runShortcut: return L("Kestirme çalıştır")
         }
     }
 }
@@ -246,19 +246,19 @@ struct BindingEditorView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 8) {
-                            Text(isEditing ? "Hareketi düzenle" : "Yeni hareket ekle")
+                            Text(isEditing ? L("Hareketi düzenle") : L("Yeni hareket ekle"))
                                 .font(.system(size: 18, weight: .semibold)).foregroundStyle(MM.text)
                             if isBuiltIn {
                                 HStack(spacing: 3) {
                                     Image(systemName: "lock.fill").font(.system(size: 9, weight: .semibold))
-                                    Text("Temel hareket").font(.system(size: 11.5, weight: .medium))
+                                    Text(L("Temel hareket")).font(.system(size: 11.5, weight: .medium))
                                 }
                                 .foregroundStyle(MM.text2)
                                 .padding(.horizontal, 8).padding(.vertical, 3)
                                 .background(MM.neuBg, in: Capsule())
                             }
                         }
-                        Text("Bir hareket seç. Merlin Mouse onu macOS ve BetterTouchTool atamalarıyla karşılaştırır.")
+                        Text(L("Bir hareket seç. Merlin Mouse onu macOS ve BetterTouchTool atamalarıyla karşılaştırır."))
                             .font(.system(size: 13)).foregroundStyle(MM.text2)
                     }
                     .padding(.horizontal, 24).padding(.top, 20).padding(.bottom, 12)
@@ -266,7 +266,7 @@ struct BindingEditorView: View {
                     if builtInChanged {
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: "exclamationmark.triangle").font(.system(size: 14, weight: .semibold))
-                            Text("Temel bir hareketi değiştiriyorsun. Varsayılan davranış değişir; 'Varsayılana sıfırla' ile geri alabilirsin.")
+                            Text(L("Temel bir hareketi değiştiriyorsun. Varsayılan davranış değişir; 'Varsayılana sıfırla' ile geri alabilirsin."))
                                 .font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
                             Spacer(minLength: 0)
                         }
@@ -285,7 +285,7 @@ struct BindingEditorView: View {
                     VStack(spacing: 12) {
                         MMCard(padding: 16) {
                             VStack(alignment: .leading, spacing: 10) {
-                                MMSectionLabel("Eylem")
+                                MMSectionLabel(L("Eylem"))
                                 actionFields
                                 if let m = result.missing {
                                     Text(m).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(MM.warnText)
@@ -295,7 +295,7 @@ struct BindingEditorView: View {
                         }
                         MMCard(padding: 16) {
                             VStack(alignment: .leading, spacing: 10) {
-                                MMSectionLabel("Kapsam")
+                                MMSectionLabel(L("Kapsam"))
                                 scopeField
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -306,17 +306,17 @@ struct BindingEditorView: View {
             }
             HStack(spacing: 10) {
                 if isBuiltIn {
-                    MMSecondaryButton("Varsayılana sıfırla") { resetFields() }
+                    MMSecondaryButton(L("Varsayılana sıfırla")) { resetFields() }
                 } else if isEditing {
-                    MMSecondaryButton("Değişiklikleri geri al") { resetFields() }
+                    MMSecondaryButton(L("Değişiklikleri geri al")) { resetFields() }
                         .disabled(!dirty).opacity(dirty ? 1 : 0.4)
-                    smallButton("Sil", ink: .red) { confirmDelete = true }
+                    smallButton(L("Sil"), ink: .red) { confirmDelete = true }
                 } else {
-                    MMSecondaryButton("Sıfırla") { resetFields() }
+                    MMSecondaryButton(L("Sıfırla")) { resetFields() }
                 }
                 Spacer()
-                MMSecondaryButton("Vazgeç") { dismiss() }.keyboardShortcut(.cancelAction)
-                MMPrimaryButton(isEditing ? "Kaydet" : "Ekle") { save() }
+                MMSecondaryButton(L("Vazgeç")) { dismiss() }.keyboardShortcut(.cancelAction)
+                MMPrimaryButton(isEditing ? L("Kaydet") : L("Ekle")) { save() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(!canSave).opacity(canSave ? 1 : 0.4)
             }
@@ -327,20 +327,20 @@ struct BindingEditorView: View {
         .frame(width: 820, height: 700)
         .background(MM.card)
         .onAppear { env = AppModel.shared.conflictEnvironment() }
-        .confirmationDialog("Temel hareketi değiştir?", isPresented: $confirmChange) {
-            Button("Değiştir") { commit() }
-            Button("Vazgeç", role: .cancel) {}
+        .confirmationDialog(L("Temel hareketi değiştir?"), isPresented: $confirmChange) {
+            Button(L("Değiştir")) { commit() }
+            Button(L("Vazgeç"), role: .cancel) {}
         } message: {
-            Text("Varsayılan davranış değişir. İstediğin zaman 'Varsayılana sıfırla' ile geri alabilirsin.")
+            Text(L("Varsayılan davranış değişir. İstediğin zaman 'Varsayılana sıfırla' ile geri alabilirsin."))
         }
-        .confirmationDialog("Bu atama silinsin mi?", isPresented: $confirmDelete) {
-            Button("Sil", role: .destructive) {
+        .confirmationDialog(L("Bu atama silinsin mi?"), isPresented: $confirmDelete) {
+            Button(L("Sil"), role: .destructive) {
                 BindingStore.shared.remove(id: id)
                 dismiss()
             }
-            Button("Vazgeç", role: .cancel) {}
+            Button(L("Vazgeç"), role: .cancel) {}
         } message: {
-            Text("\(trigger.title) → \(action.title)")
+            Text(verbatim: "\(trigger.title) → \(action.title)")
         }
     }
 
@@ -349,12 +349,12 @@ struct BindingEditorView: View {
     private func cardStatus(_ t: Trigger) -> (text: String, dot: Color) {
         let conflicts = ConflictChecker.check(binding(for: t), among: BindingStore.shared.bindings, env: env)
         switch BindingValidation.heaviest(conflicts)?.level {
-        case .reserved, .unsupported: return ("Ayrılmış", MM.text2)
-        case .duplicate: return ("Zaten atanmış", MM.text2)
-        case .replacesDisabled: return ("Kapalı ataması var", MM.text2)
-        case .macOS: return ("macOS kullanıyor", MM.warnDot)
-        case .btt: return ("BetterTouchTool'da atanmış", MM.bttDot)
-        default: return ("Serbest", MM.accent)
+        case .reserved, .unsupported: return (L("Ayrılmış"), MM.text2)
+        case .duplicate: return (L("Zaten atanmış"), MM.text2)
+        case .replacesDisabled: return (L("Kapalı ataması var"), MM.text2)
+        case .macOS: return (L("macOS kullanıyor"), MM.warnDot)
+        case .btt: return (L("BetterTouchTool'da atanmış"), MM.bttDot)
+        default: return (L("Serbest"), MM.accent)
         }
     }
 
@@ -369,7 +369,7 @@ struct BindingEditorView: View {
                     picked = true
                 }
             }
-            gestureCard(title: "Özel hareket…", status: "Tür, parmak ve bölgeyi kendin seç", dot: nil,
+            gestureCard(title: L("Özel hareket…"), status: L("Tür, parmak ve bölgeyi kendin seç"), dot: nil,
                         selected: picked && custom) {
                 custom = true
                 picked = true
@@ -407,7 +407,7 @@ struct BindingEditorView: View {
                                                           modifier: trigger.modifier)
         MMCard(padding: 16) {
             VStack(alignment: .leading, spacing: 10) {
-                MMSectionLabel("Özel hareket")
+                MMSectionLabel(L("Özel hareket"))
                 triggerFields
                 if zones.isEmpty, let reason {
                     Text(reason).font(.system(size: 12)).foregroundStyle(MM.text2)
@@ -481,28 +481,28 @@ struct BindingEditorView: View {
 
     @ViewBuilder private func conflictMain(_ conflicts: [Conflict]) -> some View {
         if !picked {
-            Text("Yukarıdan bir hareket seç.").font(.system(size: 13)).foregroundStyle(MM.text2)
+            Text(L("Yukarıdan bir hareket seç.")).font(.system(size: 13)).foregroundStyle(MM.text2)
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else if let c = BindingValidation.heaviest(conflicts) {
             switch c.level {
             case .macOS:
                 conflictCard(icon: "exclamationmark.triangle", bg: MM.warnBg, line: MM.warnLine, fg: MM.warnText,
-                             title: "macOS bu hareketi kullanıyor: \(ownerName(c))",
-                             detail: "Yer: Sistem Ayarları › Fare. Atarsan iki eylem aynı anda çalışır.") {
-                    smallButton("Farklı hareket seç", fill: MM.warnText, ink: MM.accentInk) { clearPick() }
-                    smallButton("macOS'ta kapat…", fill: MM.card, border: MM.warnLine) {
+                             title: LF("macOS bu hareketi kullanıyor: %@", ownerName(c)),
+                             detail: L("Yer: Sistem Ayarları › Fare. Atarsan iki eylem aynı anda çalışır.")) {
+                    smallButton(L("Farklı hareket seç"), fill: MM.warnText, ink: MM.accentInk) { clearPick() }
+                    smallButton(L("macOS'ta kapat…"), fill: MM.card, border: MM.warnLine) {
                         if let url = URL(string: "x-apple.systempreferences:com.apple.Mouse-Settings.extension") {
                             NSWorkspace.shared.open(url)
                         }
                     }
-                    smallButton("Yine de ata", ink: MM.warnText, underline: true) { save() }
+                    smallButton(L("Yine de ata"), ink: MM.warnText, underline: true) { save() }
                         .disabled(!canSaveNow(conflicts))
                 }
             case .btt:
                 conflictCard(icon: "arrow.left.arrow.right", bg: MM.bttBg, line: MM.bttLine, fg: MM.bttText,
-                             title: "BetterTouchTool bu hareketi kullanıyor", detail: c.detail) {
-                    smallButton("Farklı hareket seç", fill: MM.card, border: MM.bttLine) { clearPick() }
-                    smallButton("Yine de ata", ink: MM.bttText, underline: true) { save() }
+                             title: L("BetterTouchTool bu hareketi kullanıyor"), detail: c.detail) {
+                    smallButton(L("Farklı hareket seç"), fill: MM.card, border: MM.bttLine) { clearPick() }
+                    smallButton(L("Yine de ata"), ink: MM.bttText, underline: true) { save() }
                         .disabled(!canSaveNow(conflicts))
                 }
             case .duplicate:
@@ -511,32 +511,32 @@ struct BindingEditorView: View {
                 }
                 let rivalIsBuiltIn = rival?.isBuiltIn ?? false
                 conflictCard(icon: "square.on.square", bg: MM.neuBg, line: MM.line, fg: MM.text,
-                             title: "Bu hareket zaten '\(rival?.action.title ?? "başka bir")' eylemine atanmış",
+                             title: LF("Bu hareket zaten '%@' eylemine atanmış", rival?.action.title ?? L("başka bir")),
                              detail: c.detail) {
-                    smallButton("Farklı hareket seç", fill: MM.card, border: MM.line) { clearPick() }
-                    smallButton(rivalIsBuiltIn ? "Temeli kapatıp ata" : "Öncekinin yerine geçir", fill: MM.accent, ink: MM.accentInk) { save() }
+                    smallButton(L("Farklı hareket seç"), fill: MM.card, border: MM.line) { clearPick() }
+                    smallButton(rivalIsBuiltIn ? L("Temeli kapatıp ata") : L("Öncekinin yerine geçir"), fill: MM.accent, ink: MM.accentInk) { save() }
                         .disabled(!canSaveNow(conflicts))
                 }
             case .replacesDisabled:
                 conflictCard(icon: "arrow.triangle.2.circlepath", bg: MM.neuBg, line: MM.line, fg: MM.text,
                              title: c.title, detail: c.detail) {
-                    smallButton("Farklı hareket seç", fill: MM.card, border: MM.line) { clearPick() }
-                    smallButton("Yerine geçerek ekle", fill: MM.accent, ink: MM.accentInk) { save() }
+                    smallButton(L("Farklı hareket seç"), fill: MM.card, border: MM.line) { clearPick() }
+                    smallButton(L("Yerine geçerek ekle"), fill: MM.accent, ink: MM.accentInk) { save() }
                         .disabled(!canSaveNow(conflicts))
                 }
             case .reserved, .unsupported:
                 conflictCard(icon: "lock", bg: MM.neuBg, line: MM.line, fg: MM.text,
-                             title: "Ayrılmış: \(c.title)", detail: c.detail) { EmptyView() }
+                             title: LF("Ayrılmış: %@", c.title), detail: c.detail) { EmptyView() }
             case .shadows:
                 conflictCard(icon: "info.circle", bg: MM.accentSoft, line: MM.accentLine, fg: MM.accentText,
-                             title: "Genel atamayı ezer", detail: c.detail) { EmptyView() }
+                             title: L("Genel atamayı ezer"), detail: c.detail) { EmptyView() }
             case .caution:
                 conflictCard(icon: "exclamationmark.triangle", bg: MM.warnBg, line: MM.warnLine, fg: MM.warnText,
                              title: c.title, detail: c.detail) { EmptyView() }
             }
         } else {
             conflictCard(icon: "checkmark", bg: MM.accentSoft, line: MM.accentLine, fg: MM.accentText,
-                         title: "Bu hareket serbest", detail: "macOS'ta ve BetterTouchTool'da atanmış değil.") { EmptyView() }
+                         title: L("Bu hareket serbest"), detail: L("macOS'ta ve BetterTouchTool'da atanmış değil.")) { EmptyView() }
         }
     }
 
@@ -554,30 +554,30 @@ struct BindingEditorView: View {
     }
 
     @ViewBuilder private var triggerFields: some View {
-        Picker("Hareket türü", selection: field(\.kind)) {
+        Picker(L("Hareket türü"), selection: field(\.kind)) {
             ForEach(TriggerOptions.editableKinds, id: \.self) { Text(Self.kindName($0)).tag($0) }
         }
         if trigger.modifier == .none {
-            Picker("Parmak", selection: field(\.fingers)) {
+            Picker(L("Parmak"), selection: field(\.fingers)) {
                 ForEach(TriggerOptions.fingerChoices(kind: trigger.kind), id: \.self) { Text("\($0)").tag($0) }
             }
             .pickerStyle(.segmented)
         }
         let zones = TriggerOptions.zoneChoices(kind: trigger.kind, fingers: trigger.fingers, modifier: trigger.modifier)
         if !zones.isEmpty {
-            Picker("Bölge", selection: field(\.zone)) {
+            Picker(L("Bölge"), selection: field(\.zone)) {
                 ForEach(zones, id: \.self) { Text(Self.zoneName($0)).tag($0) }
             }
             .pickerStyle(.segmented)
         }
         let mods = TriggerOptions.modifierChoices(kind: trigger.kind)
         if mods.count > 1 {
-            Picker("Tuş", selection: field(\.modifier)) {
+            Picker(L("Tuş"), selection: field(\.modifier)) {
                 ForEach(mods, id: \.self) { Text(Self.modifierName($0)).tag($0) }
             }
         }
         if trigger.kind == .swipe {
-            Picker("Yön", selection: field(\.direction)) {
+            Picker(L("Yön"), selection: field(\.direction)) {
                 ForEach(SwipeDirection.allCases, id: \.self) { Text(Self.directionName($0)).tag($0) }
             }
         }
@@ -585,27 +585,27 @@ struct BindingEditorView: View {
 
     private static func kindName(_ k: GestureKind) -> String {
         switch k {
-        case .press: return "Bas"
-        case .tap: return "Dokun"
-        case .doubleTap: return "Çift dokun"
-        case .swipe: return "Kaydır"
-        case .hold: return "Basılı tut"
+        case .press: return L("Bas")
+        case .tap: return L("Dokun")
+        case .doubleTap: return L("Çift dokun")
+        case .swipe: return L("Kaydır")
+        case .hold: return L("Basılı tut")
         }
     }
 
     private static func zoneName(_ z: Zone) -> String {
         switch z {
-        case .any: return "Herhangi"
-        case .left: return "Sol"
-        case .center: return "Orta"
-        case .right: return "Sağ"
-        case .rear: return "Arka (logo)"
+        case .any: return L("Herhangi")
+        case .left: return L("Sol")
+        case .center: return L("Orta")
+        case .right: return L("Sağ")
+        case .rear: return L("Arka (logo)")
         }
     }
 
     private static func modifierName(_ m: PressModifier) -> String {
         switch m {
-        case .none: return "Yok"
+        case .none: return L("Yok")
         case .fn: return "Fn"
         case .option: return "⌥ Option"
         case .command: return "⌘ Command"
@@ -615,37 +615,37 @@ struct BindingEditorView: View {
 
     private static func directionName(_ d: SwipeDirection) -> String {
         switch d {
-        case .up: return "Yukarı (öne)"
-        case .down: return "Aşağı"
-        case .left: return "Sola"
-        case .right: return "Sağa"
+        case .up: return L("Yukarı (öne)")
+        case .down: return L("Aşağı")
+        case .left: return L("Sola")
+        case .right: return L("Sağa")
         }
     }
 
     // MARK: Eylem
 
     @ViewBuilder private var actionFields: some View {
-        Picker("Eylem", selection: $kind) {
+        Picker(L("Eylem"), selection: $kind) {
             ForEach(EditorActionKind.allCases) { Text($0.title).tag($0) }
         }
         switch kind {
         case .shortcut:
-            LabeledContent("Kısayol") { ShortcutRecorder(combo: $combo) }
+            LabeledContent(L("Kısayol")) { ShortcutRecorder(combo: $combo) }
         case .system:
-            Picker("Sistem eylemi", selection: $sysAction) {
+            Picker(L("Sistem eylemi"), selection: $sysAction) {
                 ForEach(SystemAction.allCases, id: \.self) { Text($0.title).tag($0) }
             }
         case .openApp:
-            LabeledContent("Uygulama") {
-                Button(appName.isEmpty ? "Seç…" : appName) {
+            LabeledContent(L("Uygulama")) {
+                Button(appName.isEmpty ? L("Seç…") : appName) {
                     if let p = AppPicker.pickApp() { appPath = p.path; appName = p.name }
                 }
             }
         case .runShortcut:
             HStack {
-                TextField("Kestirme adı", text: $shortcutName)
-                Menu("Seç") {
-                    if shortcutList.isEmpty { Text("Kestirme bulunamadı") }
+                TextField(L("Kestirme adı"), text: $shortcutName)
+                Menu(L("Seç")) {
+                    if shortcutList.isEmpty { Text(L("Kestirme bulunamadı")) }
                     ForEach(shortcutList, id: \.self) { n in Button(n) { shortcutName = n } }
                 }
                 .fixedSize()
@@ -666,11 +666,11 @@ struct BindingEditorView: View {
 
     @ViewBuilder private var scopeField: some View {
         if isBuiltIn {
-            Picker("Kapsam", selection: .constant("")) {
-                Text("Tüm uygulamalar").tag("")
+            Picker(L("Kapsam"), selection: .constant("")) {
+                Text(L("Tüm uygulamalar")).tag("")
             }
             .disabled(true)
-            Text("Temel hareketler tüm uygulamalarda geçerlidir. Bir uygulamaya özel davranış için Uygulama profillerinden yeni hareket ekle.")
+            Text(L("Temel hareketler tüm uygulamalarda geçerlidir. Bir uygulamaya özel davranış için Uygulama profillerinden yeni hareket ekle."))
                 .font(.system(size: 12)).foregroundStyle(MM.text2)
                 .fixedSize(horizontal: false, vertical: true)
         } else {
@@ -679,7 +679,7 @@ struct BindingEditorView: View {
     }
 
     @ViewBuilder private var scopePicker: some View {
-        Picker("Kapsam", selection: Binding<String>(
+        Picker(L("Kapsam"), selection: Binding<String>(
             get: { scope?.id ?? "" },
             set: { v in
                 if v == Self.otherTag {
@@ -692,10 +692,10 @@ struct BindingEditorView: View {
                     scope = scopeOptions.first { $0.id == v }
                 }
             })) {
-            Text("Tüm uygulamalar").tag("")
+            Text(L("Tüm uygulamalar")).tag("")
             ForEach(scopeOptions) { Text($0.name).tag($0.id) }
             Divider()
-            Text("Diğer uygulama…").tag(Self.otherTag)
+            Text(L("Diğer uygulama…")).tag(Self.otherTag)
         }
     }
 }

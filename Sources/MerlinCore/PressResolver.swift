@@ -6,6 +6,10 @@ extension Zone {
         if Double(y) < layout.frontLimit { return .rear }
         let dx = Double(x)
         if dx < layout.leftEdge { return .left }
+        // Orta bölgenin üstündeki ön uç: orta sütunun sol yarısı sola, sağ yarısı sağa katılır.
+        if Double(y) > layout.centerTop, dx <= layout.rightEdge {
+            return dx < (layout.leftEdge + layout.rightEdge) / 2 ? .left : .right
+        }
         return dx <= layout.rightEdge ? .center : .right
     }
 }

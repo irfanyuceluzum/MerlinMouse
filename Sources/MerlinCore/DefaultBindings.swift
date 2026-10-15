@@ -23,23 +23,33 @@ public struct BuiltInDefinition: Equatable {
     public let key: String
     public let trigger: Trigger
     public let action: GestureAction
-    public let title: String
+    /// Gösterim adı; çeviri tablosundan her çağrıda üretilir.
+    public var title: String {
+        switch key {
+        case "zone-center": return MerlinText.t("Orta bölgeye bas")
+        case "two-finger": return MerlinText.t("İki parmakla bas")
+        case "three-finger": return MerlinText.t("Üç parmakla bas")
+        case "three-finger-tap": return MerlinText.t("Üç parmakla dokun")
+        case "fn": return MerlinText.t("Fn + bas")
+        default: return key
+        }
+    }
 }
 
 public enum DefaultBindings {
     /// İlk kurulumdaki beş temel hareket (sıra sabit).
     public static let definitions: [BuiltInDefinition] = [
         BuiltInDefinition(key: "zone-center", trigger: Trigger(kind: .press, fingers: 1, zone: .center).normalized,
-                          action: .middleClick, title: "Orta bölgeye bas"),
+                          action: .middleClick),
         BuiltInDefinition(key: "two-finger", trigger: Trigger(kind: .press, fingers: 2).normalized,
-                          action: .middleClick, title: "İki parmakla bas"),
+                          action: .middleClick),
         // "3 ve üzeri": 4 parmak eşleştirmede 3 parmağa geri düşer.
         BuiltInDefinition(key: "three-finger", trigger: Trigger(kind: .press, fingers: 3).normalized,
-                          action: .middleClick, title: "Üç parmakla bas"),
+                          action: .middleClick),
         BuiltInDefinition(key: "three-finger-tap", trigger: Trigger(kind: .tap, fingers: 3).normalized,
-                          action: .middleClick, title: "Üç parmakla dokun"),
+                          action: .middleClick),
         BuiltInDefinition(key: "fn", trigger: Trigger(kind: .press, fingers: 0, modifier: .fn).normalized,
-                          action: .middleClick, title: "Fn + bas"),
+                          action: .middleClick),
     ]
 
     /// Bugünkü dönüşüm kurallarının birebir karşılığı; hepsi genel kapsam, orta tıklama.

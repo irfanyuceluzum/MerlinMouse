@@ -21,19 +21,19 @@ struct BindingListView: View {
             card(env: env)
         }
         .sheet(item: $editing) { b in BindingEditorView(existing: b) }
-        .confirmationDialog("Bu atama silinsin mi?", isPresented: Binding(
+        .confirmationDialog(L("Bu atama silinsin mi?"), isPresented: Binding(
             get: { deleting != nil }, set: { if !$0 { deleting = nil } }), presenting: deleting) { b in
-            Button("Sil", role: .destructive) { store.remove(id: b.id) }
-            Button("Vazgeç", role: .cancel) {}
+            Button(L("Sil"), role: .destructive) { store.remove(id: b.id) }
+            Button(L("Vazgeç"), role: .cancel) {}
         } message: { b in
-            Text("\(b.trigger.title) → \(b.action.title)")
+            Text(verbatim: "\(b.trigger.title) → \(b.action.title)")
         }
-        .confirmationDialog("Varsayılana sıfırlansın mı?", isPresented: Binding(
+        .confirmationDialog(L("Varsayılana sıfırlansın mı?"), isPresented: Binding(
             get: { resetting != nil }, set: { if !$0 { resetting = nil } }), presenting: resetting) { b in
-            Button("Varsayılana sıfırla") { store.resetToDefault(id: b.id) }
-            Button("Vazgeç", role: .cancel) {}
+            Button(L("Varsayılana sıfırla")) { store.resetToDefault(id: b.id) }
+            Button(L("Vazgeç"), role: .cancel) {}
         } message: { b in
-            Text("Temel hareketin tetiği ve eylemi ilk kurulumdaki hâline döner.")
+            Text(L("Temel hareketin tetiği ve eylemi ilk kurulumdaki hâline döner."))
         }
     }
 
@@ -45,10 +45,10 @@ struct BindingListView: View {
                 let cols = Columns(total: geo.size.width)
                 VStack(spacing: 0) {
                     HStack(spacing: 12) {
-                        MMSectionLabel("Hareket").frame(width: cols.trigger, alignment: .leading)
-                        MMSectionLabel("Eylem").frame(width: cols.action, alignment: .leading)
-                        MMSectionLabel("Durum").frame(width: cols.status, alignment: .leading)
-                        MMSectionLabel("Açık").frame(width: 56, alignment: .leading)
+                        MMSectionLabel(L("Hareket")).frame(width: cols.trigger, alignment: .leading)
+                        MMSectionLabel(L("Eylem")).frame(width: cols.action, alignment: .leading)
+                        MMSectionLabel(L("Durum")).frame(width: cols.status, alignment: .leading)
+                        MMSectionLabel(L("Açık")).frame(width: 56, alignment: .leading)
                         Color.clear.frame(width: Columns.editWidth + Columns.trashWidth + 24 + Columns.chevronWidth, height: 1)
                     }
                     .padding(.horizontal, 20).padding(.vertical, 12)
@@ -57,7 +57,7 @@ struct BindingListView: View {
                     .overlay(alignment: .bottom) { Rectangle().fill(MM.line).frame(height: 1) }
 
                     if items.isEmpty {
-                        Text("Bu kapsamda henüz atama yok.")
+                        Text(L("Bu kapsamda henüz atama yok."))
                             .font(.callout).foregroundStyle(MM.text2)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
@@ -78,12 +78,12 @@ struct BindingListView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 Image(systemName: "info.circle").font(.system(size: 13, weight: .medium))
-                Text("Orta tuşla sürüklerken Magic Mouse kaydırması engellenir, model istemeden yakınlaşmaz.")
+                Text(L("Orta tuşla sürüklerken Magic Mouse kaydırması engellenir, model istemeden yakınlaşmaz."))
             }
             if !store.set.preserved.isEmpty {
                 HStack(spacing: 10) {
                     Image(systemName: "archivebox").font(.system(size: 13, weight: .medium))
-                    Text("Bu sürümün tanımadığı \(store.set.preserved.count) atama korunuyor")
+                    Text(LF("Bu sürümün tanımadığı %lld atama korunuyor", store.set.preserved.count))
                 }
             }
         }
@@ -111,21 +111,21 @@ struct BindingListView: View {
 
     private func subtitle(_ b: GestureBinding, conflicts: [Conflict], kind: BindingStatusKind) -> (String, Bool) {
         if kind == .macOS, let c = conflicts.first(where: { $0.level == .macOS }) { return (c.detail, true) }
-        if kind == .disabled { return ("Kapalı", false) }
+        if kind == .disabled { return (L("Kapalı"), false) }
         let t = b.trigger.normalized
-        if t.modifier != .none { return ("Klavye + fare", false) }
+        if t.modifier != .none { return (L("Klavye + fare"), false) }
         let fingers: String
         switch t.fingers {
-        case 1: fingers = "Tek parmak"
-        case 2: fingers = "İki parmak"
-        case 3: fingers = "Üç parmak"
-        case let n: fingers = "\(n) parmak"
+        case 1: fingers = L("Tek parmak")
+        case 2: fingers = L("İki parmak")
+        case 3: fingers = L("Üç parmak")
+        case let n: fingers = LF("%lld parmak", n)
         }
         switch t.kind {
-        case .press, .hold: return ("\(fingers) · fiziksel tıklama", false)
-        case .tap: return ("Basmadan, hafif dokunuş", false)
-        case .doubleTap: return ("Basmadan, çift dokunuş", false)
-        case .swipe: return ("\(fingers) · kaydırma", false)
+        case .press, .hold: return (LF("%@ · fiziksel tıklama", fingers), false)
+        case .tap: return (L("Basmadan, hafif dokunuş"), false)
+        case .doubleTap: return (L("Basmadan, çift dokunuş"), false)
+        case .swipe: return (LF("%@ · kaydırma", fingers), false)
         }
     }
 
@@ -146,15 +146,15 @@ struct BindingListView: View {
             .frame(width: cols.trigger, alignment: .leading)
             Text(b.action.title).font(.system(size: 13.5)).foregroundStyle(MM.text)
                 .frame(width: cols.action, alignment: .leading)
-            MMStatusBadge(kind: kind, label: kind == .blocked ? blockedLabel(conflicts) : (kind == .replacesDisabled ? "Kapalı kopya" : nil))
+            MMStatusBadge(kind: kind, label: kind == .blocked ? blockedLabel(conflicts) : (kind == .replacesDisabled ? L("Kapalı kopya") : nil))
                 .frame(width: cols.status, alignment: .leading)
             MMSwitch(isOn: Binding(get: { b.enabled }, set: { store.setEnabled(id: b.id, $0) }),
-                     label: "\(b.trigger.title) hareketi")
+                     label: LF("%@ hareketi", b.trigger.title))
                 .frame(width: 56, alignment: .leading)
             Button { editing = b } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "pencil").font(.system(size: 11, weight: .semibold))
-                    Text("Düzenle").font(.system(size: 12))
+                    Text(L("Düzenle")).font(.system(size: 12))
                 }
                 .foregroundStyle(MM.text)
                 .padding(.horizontal, 9).frame(width: Columns.editWidth, height: 26)
@@ -162,7 +162,7 @@ struct BindingListView: View {
                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(MM.line, lineWidth: 1))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(b.trigger.title) hareketini düzenle")
+            .accessibilityLabel(LF("%@ hareketini düzenle", b.trigger.title))
             Group {
                 if b.isBuiltIn {
                     Color.clear
@@ -174,8 +174,8 @@ struct BindingListView: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help("Atamayı sil")
-                    .accessibilityLabel("\(b.trigger.title) hareketini sil")
+                    .help(L("Atamayı sil"))
+                    .accessibilityLabel(LF("%@ hareketini sil", b.trigger.title))
                 }
             }
             .frame(width: Columns.trashWidth, height: 26)
@@ -195,13 +195,13 @@ struct BindingListView: View {
         }
         .onTapGesture { editing = b }
         .accessibilityElement(children: .contain)
-        .accessibilityHint("\(b.trigger.title) hareketini düzenle")
+        .accessibilityHint(LF("%@ hareketini düzenle", b.trigger.title))
         .contextMenu {
-            Button("Düzenle") { editing = b }
+            Button(L("Düzenle")) { editing = b }
             if b.isBuiltIn {
-                Button("Varsayılana sıfırla") { resetting = b }
+                Button(L("Varsayılana sıfırla")) { resetting = b }
             } else {
-                Button("Sil", role: .destructive) { deleting = b }
+                Button(L("Sil"), role: .destructive) { deleting = b }
             }
         }
     }
@@ -209,19 +209,19 @@ struct BindingListView: View {
     private var builtInTag: some View {
         HStack(spacing: 3) {
             Image(systemName: "lock.fill").font(.system(size: 8, weight: .semibold))
-            Text("Temel").font(.system(size: 10.5, weight: .medium))
+            Text(L("Temel")).font(.system(size: 10.5, weight: .medium))
         }
         .foregroundStyle(MM.text2)
         .padding(.horizontal, 6).padding(.vertical, 2)
         .background(MM.neuBg, in: Capsule())
-        .help("Temel hareket: silinemez, kapatılabilir ve varsayılana sıfırlanabilir.")
+        .help(L("Temel hareket: silinemez, kapatılabilir ve varsayılana sıfırlanabilir."))
     }
 
     private func blockedLabel(_ conflicts: [Conflict]) -> String {
         switch conflicts.first(where: { $0.level.blocksSave })?.level {
-        case .unsupported: return "Desteklenmiyor"
-        case .duplicate: return "Yinelenen"
-        default: return "Ayrılmış"
+        case .unsupported: return L("Desteklenmiyor")
+        case .duplicate: return L("Yinelenen")
+        default: return L("Ayrılmış")
         }
     }
 }

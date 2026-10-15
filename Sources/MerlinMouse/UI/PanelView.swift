@@ -16,12 +16,12 @@ struct PanelView: View {
             header
             VStack(alignment: .leading, spacing: 10) {
                 if !model.trusted {
-                    MMBanner(kind: .warning, title: "Erişilebilirlik izni gerekli",
-                             actionTitle: "Ayarları aç") { model.openAccessibilitySettings() }
+                    MMBanner(kind: .warning, title: L("Erişilebilirlik izni gerekli"),
+                             actionTitle: L("Ayarları aç")) { model.openAccessibilitySettings() }
                 }
                 if model.isPaused, let until = s.pausedUntil {
-                    MMBanner(kind: .info, title: "\(Self.timeText(until))'e kadar duraklatıldı",
-                             actionTitle: "Devam et") { model.resume() }
+                    MMBanner(kind: .info, title: LF("%@'e kadar duraklatıldı", Self.timeText(until)),
+                             actionTitle: L("Devam et")) { model.resume() }
                 }
             }
             .padding(.horizontal, 16).padding(.top, model.trusted && !model.isPaused ? 0 : 12)
@@ -34,6 +34,8 @@ struct PanelView: View {
         .frame(width: 380)
         .background(MM.win)
         .tint(MM.accent)
+        // Dil değişince panel yeniden kurulur.
+        .id(s.language)
     }
 
     // MARK: Başlık
@@ -45,9 +47,9 @@ struct PanelView: View {
                 .frame(width: 40, height: 40)
                 .overlay(Image(systemName: "magicmouse").font(.system(size: 20, weight: .medium)).foregroundStyle(MM.accentInk))
             VStack(alignment: .leading, spacing: 1) {
-                Text("Merlin Mouse").font(.system(size: 14, weight: .semibold)).foregroundStyle(MM.text)
+                Text(verbatim: "Merlin Mouse").font(.system(size: 14, weight: .semibold)).foregroundStyle(MM.text)
                 HStack(spacing: 8) {
-                    Text(model.miceCount > 0 ? "Magic Mouse bağlı" : "Magic Mouse bulunamadı")
+                    Text(model.miceCount > 0 ? L("Magic Mouse bağlı") : L("Magic Mouse bulunamadı"))
                         .font(.system(size: 12)).foregroundStyle(MM.text2)
                     if model.miceCount > 0 { MMBatteryBadge(percent: battery.percent) }
                 }
@@ -70,7 +72,7 @@ struct PanelView: View {
     private var profileSection: some View {
         let appName = front.name.isEmpty ? "—" : front.name
         return VStack(alignment: .leading, spacing: 10) {
-            MMSectionLabel("Etkin profil")
+            MMSectionLabel(L("Etkin profil"))
             MMCard {
                 HStack(spacing: 10) {
                     Text(String(appName.prefix(1)).uppercased())
@@ -80,7 +82,7 @@ struct PanelView: View {
                         .background(MM.bttBg, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                     VStack(alignment: .leading, spacing: 1) {
                         Text(appName).font(.system(size: 14, weight: .medium)).foregroundStyle(MM.text).lineLimit(1)
-                        Text(hasScopedSetup ? "Bu uygulamanın profili etkin" : "Genel atamalar · öndeki uygulamadan algılandı")
+                        Text(hasScopedSetup ? L("Bu uygulamanın profili etkin") : L("Genel atamalar · öndeki uygulamadan algılandı"))
                             .font(.system(size: 12)).foregroundStyle(MM.text2).lineLimit(1)
                     }
                     Spacer(minLength: 6)
@@ -95,8 +97,8 @@ struct PanelView: View {
             }
             HStack(spacing: 8) {
                 Circle().fill(MM.accent).frame(width: 8, height: 8)
-                Text("Son eylem: ").font(.system(size: 13)).foregroundStyle(MM.text)
-                    + Text(model.lastAction).font(.system(size: 13, weight: .medium)).foregroundStyle(MM.text)
+                Text(L("Son eylem: ")).font(.system(size: 13)).foregroundStyle(MM.text)
+                    + Text(model.lastAction ?? L("Henüz yok")).font(.system(size: 13, weight: .medium)).foregroundStyle(MM.text)
             }
             .lineLimit(1)
         }
@@ -120,9 +122,9 @@ struct PanelView: View {
 
     private var quickToggles: some View {
         VStack(spacing: 0) {
-            if let b = globalCenterPress { bindingRow("Orta bölge sürükleme", b) }
-            if let b = globalThreeFingerPress { bindingRow("Üç parmakla orta tıklama", b) }
-            toggleRow("3D yakınlaştırma düzeltmesi", $s.calm3DScroll)
+            if let b = globalCenterPress { bindingRow(L("Orta bölge sürükleme"), b) }
+            if let b = globalThreeFingerPress { bindingRow(L("Üç parmakla orta tıklama"), b) }
+            toggleRow(L("3D yakınlaştırma düzeltmesi"), $s.calm3DScroll)
         }
         .padding(.horizontal, 8).padding(.vertical, 10)
         .overlay(alignment: .bottom) { MMDivider() }
@@ -146,9 +148,9 @@ struct PanelView: View {
 
     private var appearanceSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            MMSectionLabel("Görünüm")
+            MMSectionLabel(L("Görünüm"))
             HStack(spacing: 2) {
-                ForEach([("system", "Sistem"), ("light", "Gündüz"), ("dark", "Gece")], id: \.0) { id, label in
+                ForEach([("system", L("Sistem")), ("light", L("Gündüz")), ("dark", L("Gece"))], id: \.0) { id, label in
                     let on = s.appearance == id
                     Button { s.appearance = id } label: {
                         Text(label)
@@ -200,14 +202,14 @@ struct PanelView: View {
 
     private var footer: some View {
         VStack(spacing: 0) {
-            menuRow("Ayarlar…", shortcut: "⌘ ,") { openPage(nil) }
+            menuRow(L("Ayarlar…"), shortcut: "⌘ ,") { openPage(nil) }
                 .keyboardShortcut(",", modifiers: .command)
             if model.isPaused {
-                menuRow("Devam et", shortcut: nil) { model.resume() }
+                menuRow(L("Devam et"), shortcut: nil) { model.resume() }
             } else {
-                menuRow("1 saat duraklat", shortcut: nil) { model.pause(for: 3600) }
+                menuRow(L("1 saat duraklat"), shortcut: nil) { model.pause(for: 3600) }
             }
-            menuRow("Merlin Mouse'tan çık", shortcut: "⌘ Q") { NSApp.terminate(nil) }
+            menuRow(L("Merlin Mouse'tan çık"), shortcut: "⌘ Q") { NSApp.terminate(nil) }
         }
         .padding(8)
         .overlay(alignment: .top) { MMDivider() }

@@ -23,7 +23,7 @@ final class PressModule: InputModule {
             let wasDragged = machine.didDrag
             let decision = machine.mouseDragged(type == .leftMouseDragged ? .left : .right)
             if !wasDragged, machine.didDrag, machine.binding?.action == .middleClick, let b = machine.binding {
-                report("Orta tuş sürükleme · \(b.trigger.title)")
+                report("\(L("Orta tuş sürükleme")) · \(b.trigger.title)")
             }
             return apply(decision, event, .otherMouseDragged)
 
@@ -32,7 +32,7 @@ final class PressModule: InputModule {
             InputState.shared.middleDragActive = machine.isMiddleDragActive
             if case .convert = decision, let b = machine.binding, !machine.didDrag {
                 if b.action == .middleClick {
-                    report("Orta tıklama · \(b.trigger.title)")
+                    report("\(L("Orta tıklama")) · \(b.trigger.title)")
                 } else {
                     report("\(b.action.title) · \(b.trigger.title)")
                 }

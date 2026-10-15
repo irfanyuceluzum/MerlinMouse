@@ -65,25 +65,25 @@ public enum ConflictChecker {
         // Ayrılmış: kullanıcı davranışını bozacak tetikler.
         if (t.kind == .press || t.kind == .hold), t.modifier == .none, t.fingers == 1,
            t.zone == .any || t.zone == .left {
-            out.append(Conflict(level: .reserved, title: "Normal sol tıklama",
-                                detail: "Tek parmakla sol bölgeye basmak normal sol tıklamadır; dönüştürülemez."))
+            out.append(Conflict(level: .reserved, title: MerlinText.t("Normal sol tıklama"),
+                                detail: MerlinText.t("Tek parmakla sol bölgeye basmak normal sol tıklamadır; dönüştürülemez.")))
         }
         if t.kind == .swipe, t.fingers < 3 {
-            out.append(Conflict(level: .reserved, title: "Kaydırma ile karışır",
-                                detail: "Bir veya iki parmakla kaydırma normal kaydırmayla karışır; en az üç parmak gerekir."))
+            out.append(Conflict(level: .reserved, title: MerlinText.t("Kaydırma ile karışır"),
+                                detail: MerlinText.t("Bir veya iki parmakla kaydırma normal kaydırmayla karışır; en az üç parmak gerekir.")))
         }
         if t.kind == .tap, t.fingers == 1, t.zone != .rear {
-            out.append(Conflict(level: .reserved, title: "Fareyi tutarken kazara tetiklenir",
-                                detail: "Tek parmakla dokunma, fareyi tutarken istemeden tetiklenir."))
+            out.append(Conflict(level: .reserved, title: MerlinText.t("Fareyi tutarken kazara tetiklenir"),
+                                detail: MerlinText.t("Tek parmakla dokunma, fareyi tutarken istemeden tetiklenir.")))
         }
         if t.fingers == 0, t.modifier == .none {
-            out.append(Conflict(level: .reserved, title: "Parmak sayısı gerekli",
-                                detail: "Herhangi bir parmak yalnız Fn/Option/Command/Shift gibi tuşlu tetiklerde kullanılabilir."))
+            out.append(Conflict(level: .reserved, title: MerlinText.t("Parmak sayısı gerekli"),
+                                detail: MerlinText.t("Herhangi bir parmak yalnız Fn/Option/Command/Shift gibi tuşlu tetiklerde kullanılabilir.")))
         }
 
         if t.kind == .hold {
-            out.append(Conflict(level: .unsupported, title: "Basılı tut henüz desteklenmiyor",
-                                detail: "Bu tetik şimdilik çalışmaz."))
+            out.append(Conflict(level: .unsupported, title: MerlinText.t("Basılı tut henüz desteklenmiyor"),
+                                detail: MerlinText.t("Bu tetik şimdilik çalışmaz.")))
         }
 
         let dup = among.first {
@@ -91,22 +91,22 @@ public enum ConflictChecker {
         }
         if let dup {
             let detail = dup.isBuiltIn
-                ? "Kaydedersen temel '\(dup.action.title)' ataması kapatılır; istediğinde yeniden açabilirsin."
-                : "Kaydedersen önceki '\(dup.action.title)' ataması silinir ve yerine bu geçer."
-            out.append(Conflict(level: .duplicate, title: "Aynı tetik zaten atanmış",
+                ? MerlinText.f("Kaydedersen temel '%@' ataması kapatılır; istediğinde yeniden açabilirsin.", dup.action.title)
+                : MerlinText.f("Kaydedersen önceki '%@' ataması silinir ve yerine bu geçer.", dup.action.title)
+            out.append(Conflict(level: .duplicate, title: MerlinText.t("Aynı tetik zaten atanmış"),
                                 detail: detail, subject: dup.action.title, keepsRival: dup.isBuiltIn))
         }
 
         // Kapalı rakip varsa (açık rakip olsa da) kayıtta silineceği için her zaman bildirilir.
         for off in among where off.id != binding.id && !off.enabled && off.appBundleID == binding.appBundleID && off.trigger.normalized == t {
             if off.isBuiltIn {
-                out.append(Conflict(level: .replacesDisabled, title: "Kapalı bir ataması var",
-                                    detail: "Bu hareketin kapalı bir temel ataması var; kaydedersen yeni atama çalışır, temel atama kapalı kalır.",
+                out.append(Conflict(level: .replacesDisabled, title: MerlinText.t("Kapalı bir ataması var"),
+                                    detail: MerlinText.t("Bu hareketin kapalı bir temel ataması var; kaydedersen yeni atama çalışır, temel atama kapalı kalır."),
                                     subject: off.action.title, keepsRival: true))
                 continue
             }
-            out.append(Conflict(level: .replacesDisabled, title: "Kapalı bir ataması var",
-                                detail: "Bu hareket kapalı '\(off.action.title)' atamasına bağlı. Kaydedersen yeni atama onun yerine geçer.",
+            out.append(Conflict(level: .replacesDisabled, title: MerlinText.t("Kapalı bir ataması var"),
+                                detail: MerlinText.f("Bu hareket kapalı '%@' atamasına bağlı. Kaydedersen yeni atama onun yerine geçer.", off.action.title),
                                 subject: off.action.title))
         }
 
@@ -114,36 +114,36 @@ public enum ConflictChecker {
            let g = among.first(where: {
                $0.id != binding.id && $0.enabled && $0.appBundleID == nil && $0.trigger.normalized == t
            }) {
-            out.append(Conflict(level: .shadows, title: "Genel atamanın yerine geçer",
-                                detail: "\(binding.appName ?? app)'de '\(g.action.title)' yerine bu çalışır."))
+            out.append(Conflict(level: .shadows, title: MerlinText.t("Genel atamanın yerine geçer"),
+                                detail: MerlinText.f("%@'de '%@' yerine bu çalışır.", binding.appName ?? app, g.action.title)))
         }
 
         if t.kind == .press, t.fingers == 1, t.zone == .right, env.mouseButtonMode == "TwoButton" {
-            out.append(Conflict(level: .macOS, title: "macOS ikincil tıklama",
-                                detail: "Fare ayarlarında sağ taraf ikincil tıklama olarak ayarlı."))
+            out.append(Conflict(level: .macOS, title: MerlinText.t("macOS ikincil tıklama"),
+                                detail: MerlinText.t("Fare ayarlarında sağ taraf ikincil tıklama olarak ayarlı.")))
         }
         if t.kind == .doubleTap, t.fingers == 1, env.oneFingerDoubleTap != 0 {
-            out.append(Conflict(level: .macOS, title: "macOS Akıllı büyütme",
-                                detail: "Tek parmakla çift dokunma macOS'ta Akıllı büyütme olarak açık."))
+            out.append(Conflict(level: .macOS, title: MerlinText.t("macOS Akıllı büyütme"),
+                                detail: MerlinText.t("Tek parmakla çift dokunma macOS'ta Akıllı büyütme olarak açık.")))
         }
         if t.kind == .doubleTap, t.fingers == 2, env.twoFingerDoubleTap != 0 {
-            out.append(Conflict(level: .macOS, title: "macOS Mission Control",
-                                detail: "İki parmakla çift dokunma macOS'ta Mission Control olarak açık."))
+            out.append(Conflict(level: .macOS, title: MerlinText.t("macOS Mission Control"),
+                                detail: MerlinText.t("İki parmakla çift dokunma macOS'ta Mission Control olarak açık.")))
         }
 
         if env.bttRunning, t.kind == .press, t.modifier == .none, t.fingers == 2 || t.fingers == 3 {
-            out.append(Conflict(level: .btt, title: "BetterTouchTool'da da atanmış olabilir",
-                                detail: "BetterTouchTool çalışıyor; aynı hareket orada da tanımlıysa iki eylem birden tetiklenebilir."))
+            out.append(Conflict(level: .btt, title: MerlinText.t("BetterTouchTool'da da atanmış olabilir"),
+                                detail: MerlinText.t("BetterTouchTool çalışıyor; aynı hareket orada da tanımlıysa iki eylem birden tetiklenebilir.")))
         }
 
         if (t.kind == .tap || t.kind == .doubleTap), t.fingers == 1, t.zone == .rear {
-            out.append(Conflict(level: .caution, title: "Avuç değerken tetiklenmez",
-                                detail: "Avuç değerken tetiklenmez; yalnız parmaklar kalkmışken dokunun."))
+            out.append(Conflict(level: .caution, title: MerlinText.t("Avuç değerken tetiklenmez"),
+                                detail: MerlinText.t("Avuç değerken tetiklenmez; yalnız parmaklar kalkmışken dokunun.")))
         }
 
         if t.kind == .press, t.modifier == .option || t.modifier == .command || t.modifier == .shift {
-            out.append(Conflict(level: .caution, title: "Uygulamalar bu tuş + tıklamayı kullanır",
-                                detail: "Birçok uygulama bu düzenleyiciyle tıklamayı kendi işi için kullanır."))
+            out.append(Conflict(level: .caution, title: MerlinText.t("Uygulamalar bu tuş + tıklamayı kullanır"),
+                                detail: MerlinText.t("Birçok uygulama bu düzenleyiciyle tıklamayı kendi işi için kullanır.")))
         }
         return out
     }

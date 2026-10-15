@@ -26,12 +26,15 @@ final class Settings: ObservableObject {
     @Published var batteryAlertsEnabled: Bool { didSet { save(batteryAlertsEnabled, "batteryAlertsEnabled") } }
     /// "system", "light" veya "dark".
     @Published var appearance: String { didSet { save(appearance, "appearance"); applyAppearance() } }
+    /// "system", "tr" veya "en"; "system" Mac'in dilini izler.
+    @Published var language: String { didSet { save(language, "language"); Localization.apply() } }
 
     private init() {
         defaults.register(defaults: [
             "enabled": true, "zoneClick": true, "twoFingerClick": true, "threeFingerClick": true,
             "threeFingerTap": false, "fnDrag": true, "blockScrollWhileDragging": true, "calm3DScroll": true,
             "zoneWidth": 0.30, "flipY": false, "appearance": "system", "batteryAlertsEnabled": true,
+            "language": "system",
         ])
         enabled = defaults.bool(forKey: "enabled")
         zoneClick = defaults.bool(forKey: "zoneClick")
@@ -51,6 +54,7 @@ final class Settings: ObservableObject {
         flipY = defaults.bool(forKey: "flipY")
         batteryAlertsEnabled = defaults.bool(forKey: "batteryAlertsEnabled")
         appearance = defaults.string(forKey: "appearance") ?? "system"
+        language = defaults.string(forKey: "language") ?? "system"
         if let until = defaults.object(forKey: "pausedUntil") as? Date, until > Date() {
             pausedUntil = until
         } else {

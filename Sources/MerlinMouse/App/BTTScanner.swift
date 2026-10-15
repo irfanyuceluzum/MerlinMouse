@@ -14,7 +14,7 @@ enum BTTScanner {
     /// Tamamlanma ana iş parçacığında çağrılır.
     static func scan(completion: @escaping (Result<BTTScan, ScanError>) -> Void) {
         guard isRunning else {
-            DispatchQueue.main.async { completion(.failure(ScanError("BetterTouchTool çalışmıyor"))) }
+            DispatchQueue.main.async { completion(.failure(ScanError(L("BetterTouchTool çalışmıyor")))) }
             return
         }
         DispatchQueue.global(qos: .userInitiated).async {
@@ -39,7 +39,7 @@ enum BTTScanner {
         p.standardOutput = out
         p.standardError = err
         do { try p.run() } catch {
-            return .failure(ScanError("osascript başlatılamadı"))
+            return .failure(ScanError(L("osascript başlatılamadı")))
         }
 
         var timedOut = false
@@ -64,19 +64,19 @@ enum BTTScanner {
         killer.cancel()
 
         lock.lock(); let didTimeOut = timedOut; lock.unlock()
-        if didTimeOut { return .failure(ScanError("BetterTouchTool yanıt vermedi (60 sn zaman aşımı)")) }
+        if didTimeOut { return .failure(ScanError(L("BetterTouchTool yanıt vermedi (60 sn zaman aşımı)"))) }
 
         if p.terminationStatus != 0 {
             let msg = String(data: errData, encoding: .utf8) ?? ""
             if msg.contains("-1743") || msg.lowercased().contains("not authorized") {
-                return .failure(ScanError("İzin verilmedi: Sistem Ayarları › Gizlilik ve Güvenlik › Otomasyon'da Merlin Mouse için BetterTouchTool'u aç."))
+                return .failure(ScanError(L("İzin verilmedi: Sistem Ayarları › Gizlilik ve Güvenlik › Otomasyon'da Merlin Mouse için BetterTouchTool'u aç.")))
             }
-            return .failure(ScanError("BetterTouchTool taranamadı. Uygulamanın açık olduğundan emin ol."))
+            return .failure(ScanError(L("BetterTouchTool taranamadı. Uygulamanın açık olduğundan emin ol.")))
         }
         do {
             return .success(try BTTImport.parse(outData))
         } catch {
-            return .failure(ScanError("BetterTouchTool'dan gelen veri okunamadı."))
+            return .failure(ScanError(L("BetterTouchTool'dan gelen veri okunamadı.")))
         }
     }
 }

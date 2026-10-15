@@ -11,9 +11,9 @@ struct GesturesPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            MMPageHeader(title: "Hareketler",
-                         subtitle: "Magic Mouse yüzeyindeki hareketleri orta tuş eylemlerine bağla.") {
-                MMPrimaryButton("Hareket ekle", "plus") { adding = true }
+            MMPageHeader(title: L("Hareketler"),
+                         subtitle: L("Magic Mouse yüzeyindeki hareketleri orta tuş eylemlerine bağla.")) {
+                MMPrimaryButton(L("Hareket ekle"), "plus") { adding = true }
             }
             banners
             HStack(alignment: .top, spacing: 20) {
@@ -32,18 +32,18 @@ struct GesturesPage: View {
 
     @ViewBuilder private var banners: some View {
         if !model.trusted {
-            MMBanner(kind: .warning, title: "Erişilebilirlik izni gerekli",
+            MMBanner(kind: .warning, title: L("Erişilebilirlik izni gerekli"),
                      message: (model.permissionHelp.map { $0 + "\n" } ?? "")
-                        + "Tıklamaları orta tuşa çevirebilmek için Merlin Mouse'a izin ver. Listede açık görünüyorsa ama çalışmıyorsa: uygulama yeniden derlendiği için eski kayıt geçersizdir.",
-                     actionTitle: "İzni sıfırla ve yeniden iste") { model.resetAccessibilityPermission() }
-                .secondary("Ayarları aç") { model.openAccessibilitySettings() }
+                        + L("Tıklamaları orta tuşa çevirebilmek için Merlin Mouse'a izin ver. Listede açık görünüyorsa ama çalışmıyorsa: uygulama yeniden derlendiği için eski kayıt geçersizdir."),
+                     actionTitle: L("İzni sıfırla ve yeniden iste")) { model.resetAccessibilityPermission() }
+                .secondary(L("Ayarları aç")) { model.openAccessibilitySettings() }
         }
         if let notice = store.recoveryNotice {
-            MMBanner(kind: .info, title: notice, actionTitle: "Tamam") { store.dismissRecoveryNotice() }
+            MMBanner(kind: .info, title: notice, actionTitle: L("Tamam")) { store.dismissRecoveryNotice() }
         }
         if model.isPaused {
-            MMBanner(kind: .info, title: "Merlin Mouse duraklatıldı",
-                     actionTitle: "Devam et") { model.resume() }
+            MMBanner(kind: .info, title: L("Merlin Mouse duraklatıldı"),
+                     actionTitle: L("Devam et")) { model.resume() }
         }
     }
 
@@ -51,8 +51,8 @@ struct GesturesPage: View {
         MMCard(padding: 20) {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Dokunma bölgeleri").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(MM.text)
-                    Text("Sınırları sürükleyerek boyutlandır.")
+                    Text(L("Dokunma bölgeleri")).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(MM.text)
+                    Text(L("Sınırları sürükleyerek boyutlandır."))
                         .font(.system(size: 12)).foregroundStyle(MM.text2)
                 }
                 MouseZoneMap(touches: model.liveTouches, layout: s.zoneLayout, editable: true, flipped: s.flipY,
@@ -60,27 +60,27 @@ struct GesturesPage: View {
                     .frame(maxWidth: .infinity)
                 HStack(alignment: .center, spacing: 8) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Sol \(pct(s.zoneLayout.leftWidth)) · Orta \(pct(s.zoneLayout.centerWidth)) · Sağ \(pct(s.zoneLayout.rightWidth))")
-                        Text("Arka \(pct(s.zoneLayout.frontLimit)) (yüzde)").foregroundStyle(MM.text2)
+                        Text(LF("Sol %lld · Orta %lld · Sağ %lld", pct(s.zoneLayout.leftWidth), pct(s.zoneLayout.centerWidth), pct(s.zoneLayout.rightWidth)))
+                        Text(LF("Arka %lld · Orta yükseklik %lld (yüzde)", pct(s.zoneLayout.frontLimit), pct(s.zoneLayout.centerHeight))).foregroundStyle(MM.text2)
                     }
                     .font(.system(size: 11.5, design: .monospaced)).foregroundStyle(MM.text)
                     Spacer(minLength: 0)
                     Button { s.resetZoneLayout() } label: {
-                        Text("Varsayılana dön").font(.system(size: 12))
+                        Text(L("Varsayılana dön")).font(.system(size: 12))
                             .foregroundStyle(MM.text)
                             .padding(.horizontal, 10).frame(height: 26)
                             .background(MM.card, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(MM.line, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
-                    .help("Bölgeleri varsayılan boyutlarına (Sol 35 · Orta 30 · Sağ 35 · Arka 40) döndürür")
+                    .help(L("Bölgeleri varsayılan boyutlarına (Sol 35 · Orta 30 · Sağ 35 · Arka 40 · Orta yükseklik 60) döndürür"))
                 }
                 VStack(alignment: .leading, spacing: 6) {
-                    legend(fill: MM.accentSoft, stroke: MM.accent, "Orta bölge")
-                    legend(fill: MM.warnBg, stroke: MM.warnDot, "Sağ: macOS ikincil tıklama")
-                        .help("Sağ tıklama alanını macOS belirler; buradaki sağ bölge yalnız Merlin Mouse hareketleri içindir.")
-                    legend(fill: MM.bttBg, stroke: MM.bttDot, "Arka (logo): dokunma hareketleri")
-                        .help("Arka bölgeye yalnız dokunma ve çift dokunma atanabilir; avuç değerken tetiklenmez.")
+                    legend(fill: MM.accentSoft, stroke: MM.accent, L("Orta bölge"))
+                    legend(fill: MM.warnBg, stroke: MM.warnDot, L("Sağ: macOS ikincil tıklama"))
+                        .help(L("Sağ tıklama alanını macOS belirler; buradaki sağ bölge yalnız Merlin Mouse hareketleri içindir."))
+                    legend(fill: MM.bttBg, stroke: MM.bttDot, L("Arka (logo): dokunma hareketleri"))
+                        .help(L("Arka bölgeye yalnız dokunma ve çift dokunma atanabilir; avuç değerken tetiklenmez."))
                 }
                 Spacer(minLength: 0)
             }

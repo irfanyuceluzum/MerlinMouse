@@ -12,32 +12,41 @@ struct GeneralPage: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                MMPageHeader(title: "Genel", subtitle: "Etkinlik, görünüm, bölge ve aygıt ayarları.")
+                MMPageHeader(title: L("Genel"), subtitle: L("Etkinlik, görünüm, bölge ve aygıt ayarları."))
                 if let imageError {
-                    MMBanner(kind: .warning, title: "Görsel eklenemedi", message: imageError,
-                             actionTitle: "Tamam") { self.imageError = nil }
+                    MMBanner(kind: .warning, title: L("Görsel eklenemedi"), message: imageError,
+                             actionTitle: L("Tamam")) { self.imageError = nil }
                 }
-                card("Merlin Mouse") {
-                    MMSwitchRow(title: "Etkin", subtitle: "Kapalıyken hiçbir hareket dönüştürülmez", isOn: $s.enabled)
+                card(verbatim: "Merlin Mouse") {
+                    MMSwitchRow(title: L("Etkin"), subtitle: L("Kapalıyken hiçbir hareket dönüştürülmez"), isOn: $s.enabled)
                     MMDivider()
-                    row("Görünüm", "Sistem, gündüz ya da gece") {
-                        Picker("Görünüm", selection: $s.appearance) {
-                            Text("Sistem").tag("system")
-                            Text("Gündüz").tag("light")
-                            Text("Gece").tag("dark")
+                    row(L("Görünüm"), L("Sistem, gündüz ya da gece")) {
+                        Picker(L("Görünüm"), selection: $s.appearance) {
+                            Text(L("Sistem")).tag("system")
+                            Text(L("Gündüz")).tag("light")
+                            Text(L("Gece")).tag("dark")
                         }
                         .pickerStyle(.segmented).labelsHidden().frame(width: 220)
                     }
                     MMDivider()
-                    MMSwitchRow(title: "Ön / arka yönünü ters çevir",
-                                subtitle: "Haritada ön taraf yukarıda görünmüyorsa aç", isOn: $s.flipY)
+                    row(L("Dil"), L("Varsayılan olarak Mac'in dili kullanılır")) {
+                        Picker(L("Dil"), selection: $s.language) {
+                            Text(Localization.systemChoiceTitle).tag("system")
+                            Text(Localization.nativeName(of: "tr")).tag("tr")
+                            Text(Localization.nativeName(of: "en")).tag("en")
+                        }
+                        .pickerStyle(.menu).labelsHidden().frame(width: 220)
+                    }
+                    MMDivider()
+                    MMSwitchRow(title: L("Ön / arka yönünü ters çevir"),
+                                subtitle: L("Haritada ön taraf yukarıda görünmüyorsa aç"), isOn: $s.flipY)
                 }
-                card("Erişilebilirlik") {
-                    row("İzin", "Tıklamaları dönüştürmek için gerekir. Listede açık görünüyorsa ama çalışmıyorsa: uygulama yeniden derlendiği için eski kayıt geçersizdir.") {
+                card(L("Erişilebilirlik")) {
+                    row(L("İzin"), L("Tıklamaları dönüştürmek için gerekir. Listede açık görünüyorsa ama çalışmıyorsa: uygulama yeniden derlendiği için eski kayıt geçersizdir.")) {
                         HStack(spacing: 10) {
-                            statusChip(model.trusted ? "Verildi" : "Verilmedi", ok: model.trusted)
-                            MMSecondaryButton("Ayarları aç") { model.openAccessibilitySettings() }
-                            MMSecondaryButton("İzni sıfırla ve yeniden iste") { model.resetAccessibilityPermission() }
+                            statusChip(model.trusted ? L("Verildi") : L("Verilmedi"), ok: model.trusted)
+                            MMSecondaryButton(L("Ayarları aç")) { model.openAccessibilitySettings() }
+                            MMSecondaryButton(L("İzni sıfırla ve yeniden iste")) { model.resetAccessibilityPermission() }
                         }
                     }
                     if let help = model.permissionHelp {
@@ -46,47 +55,47 @@ struct GeneralPage: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                card("Fare görseli") {
+                card(L("Fare görseli")) {
                     HStack(spacing: 16) {
                         MouseZoneMap(layout: .standard, image: model.mouseImage, width: 54, showLabels: false)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Görsel yoksa çizilmiş fare gösterilir. Görsel yalnız bu Mac'te saklanır.")
+                            Text(L("Görsel yoksa çizilmiş fare gösterilir. Görsel yalnız bu Mac'te saklanır."))
                                 .font(.system(size: 12.5)).foregroundStyle(MM.text2)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer(minLength: 12)
-                        MMSecondaryButton("Görsel seç…", "photo") { pickImage() }
+                        MMSecondaryButton(L("Görsel seç…"), "photo") { pickImage() }
                         if model.mouseImage != nil {
-                            MMSecondaryButton("Kaldır") { model.removeMouseImage() }
+                            MMSecondaryButton(L("Kaldır")) { model.removeMouseImage() }
                         }
                     }
                     .padding(.horizontal, 20).padding(.vertical, 14)
                 }
-                card("Aygıt") {
-                    row("Magic Mouse", model.deviceInfo.isEmpty ? "Magic Mouse bulunamadı" : model.deviceInfo) {
-                        MMSecondaryButton("Fareyi yeniden tara", "arrow.clockwise") { model.startTouches() }
+                card(L("Aygıt")) {
+                    row("Magic Mouse", model.deviceInfo.isEmpty ? L("Magic Mouse bulunamadı") : model.deviceInfo) {
+                        MMSecondaryButton(L("Fareyi yeniden tara"), "arrow.clockwise") { model.startTouches() }
                     }
                     MMDivider()
-                    row("Pil", battery.lastRead.map { "Son okuma \(Self.timeFormatter.string(from: $0))" }) {
+                    row(L("Pil"), battery.lastRead.map { LF("Son okuma %@", Self.timeFormatter.string(from: $0)) }) {
                         HStack(spacing: 12) {
                             MMBatteryBadge(percent: battery.percent)
-                            MMSecondaryButton("Pili şimdi oku") { battery.refresh() }
+                            MMSecondaryButton(L("Pili şimdi oku")) { battery.refresh() }
                         }
                     }
                     MMDivider()
-                    MMSwitchRow(title: "Düşük pil bildirimleri",
-                                subtitle: "Pil %20 ve %10'a düşünce bildirim gönderir.", isOn: $s.batteryAlertsEnabled)
+                    MMSwitchRow(title: L("Düşük pil bildirimleri"),
+                                subtitle: L("Pil %20 ve %10'a düşünce bildirim gönderir."), isOn: $s.batteryAlertsEnabled)
                 }
-                card("Uygulama") {
-                    row("Kayıt dosyası", "~/Library/Logs/MerlinMouse.log") {
-                        MMSecondaryButton("Kayıt dosyasını Finder'da göster") {
+                card(L("Uygulama")) {
+                    row(L("Kayıt dosyası"), "~/Library/Logs/MerlinMouse.log") {
+                        MMSecondaryButton(L("Kayıt dosyasını Finder'da göster")) {
                             let url = FileManager.default.homeDirectoryForCurrentUser
                                 .appendingPathComponent("Library/Logs/MerlinMouse.log")
                             NSWorkspace.shared.activateFileViewerSelecting([url])
                         }
                     }
                     MMDivider()
-                    row("Sürüm", nil) {
+                    row(L("Sürüm"), nil) {
                         Text(version).font(.system(size: 13, design: .monospaced)).foregroundStyle(MM.text2)
                     }
                 }
@@ -110,7 +119,7 @@ struct GeneralPage: View {
         panel.allowedContentTypes = [.png, .jpeg, .heic]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.message = "Magic Mouse görselini seç"
+        panel.message = L("Magic Mouse görselini seç")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             try model.importMouseImage(from: url)
@@ -120,11 +129,15 @@ struct GeneralPage: View {
         }
     }
 
+    private func card<C: View>(verbatim title: String, @ViewBuilder _ content: () -> C) -> some View {
+        card(title, content)
+    }
+
     private func card<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
         let body = content()
         return MMCard {
             VStack(spacing: 0) {
-                Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(MM.text)
+                Text(verbatim: title).font(.system(size: 12, weight: .semibold)).foregroundStyle(MM.text)
                     .padding(.horizontal, 20).padding(.vertical, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(MM.card2)

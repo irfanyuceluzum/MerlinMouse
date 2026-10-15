@@ -29,12 +29,12 @@ public enum SystemAction: String, Codable, Hashable, CaseIterable {
 
     public var title: String {
         switch self {
-        case .missionControl: return "Mission Control"
-        case .appWindows: return "Uygulama pencereleri"
-        case .showDesktop: return "Masaüstünü göster"
-        case .screenshot: return "Ekran görüntüsü"
-        case .lockScreen: return "Ekranı kilitle"
-        case .spotlight: return "Spotlight"
+        case .missionControl: return MerlinText.t("Mission Control")
+        case .appWindows: return MerlinText.t("Uygulama pencereleri")
+        case .showDesktop: return MerlinText.t("Masaüstünü göster")
+        case .screenshot: return MerlinText.t("Ekran görüntüsü")
+        case .lockScreen: return MerlinText.t("Ekranı kilitle")
+        case .spotlight: return MerlinText.t("Spotlight")
         }
     }
 }
@@ -50,13 +50,13 @@ public enum GestureAction: Hashable {
 
     public var title: String {
         switch self {
-        case .middleClick: return "Orta tıklama"
-        case .back: return "Geri"
-        case .forward: return "İleri"
-        case .shortcut(let combo): return "Kısayol \(combo.display)"
+        case .middleClick: return MerlinText.t("Orta tıklama")
+        case .back: return MerlinText.t("Geri")
+        case .forward: return MerlinText.t("İleri")
+        case .shortcut(let combo): return MerlinText.f("Kısayol %@", combo.display)
         case .system(let s): return s.title
-        case .openApp(_, let name): return "\(name) uygulamasını aç"
-        case .runShortcut(let name): return "Kısayolu çalıştır: \(name)"
+        case .openApp(_, let name): return MerlinText.f("%@ uygulamasını aç", name)
+        case .runShortcut(let name): return MerlinText.f("Kısayolu çalıştır: %@", name)
         }
     }
 

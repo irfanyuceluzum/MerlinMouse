@@ -61,7 +61,7 @@ struct ProfilesPage: View {
                 Text(title).font(.system(size: 13.5, weight: selected ? .medium : .regular))
                     .foregroundStyle(MM.text).lineLimit(1)
                 Spacer(minLength: 0)
-                if live { Circle().fill(MM.okDot).frame(width: 8, height: 8).accessibilityLabel("Şu an önde") }
+                if live { Circle().fill(MM.okDot).frame(width: 8, height: 8).accessibilityLabel(L("Şu an önde")) }
             }
             .padding(8).frame(minHeight: 44)
             .background(selected ? MM.accentSoft : Color.clear, in: shape)
@@ -74,10 +74,10 @@ struct ProfilesPage: View {
 
     private var appColumn: some View {
         VStack(alignment: .leading, spacing: 4) {
-            MMSectionLabel("Uygulamalar").padding(.horizontal, 8).padding(.bottom, 8)
+            MMSectionLabel(L("Uygulamalar")).padding(.horizontal, 8).padding(.bottom, 8)
             ScrollView {
                 VStack(spacing: 4) {
-                    appRow(title: "Tüm uygulamalar", selected: selection == nil, bg: MM.neuBg, fg: MM.text,
+                    appRow(title: L("Tüm uygulamalar"), selected: selection == nil, bg: MM.neuBg, fg: MM.text,
                            letter: "*", live: false) { selection = nil }
                     ForEach(apps) { app in
                         let c = letterColors(app.name)
@@ -101,13 +101,13 @@ struct ProfilesPage: View {
                 Button(app.name) { add(app) }
             }
             Divider()
-            Button("Diğer uygulama…") {
+            Button(L("Diğer uygulama…")) {
                 if let p = AppPicker.pickApp(), let id = p.bundleID { add(AppChoice(id: id, name: p.name)) }
             }
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "plus").font(.system(size: 13, weight: .semibold))
-                Text("Uygulama ekle").font(.system(size: 13.5))
+                Text(L("Uygulama ekle")).font(.system(size: 13.5))
                 Spacer(minLength: 0)
             }
             .foregroundStyle(MM.text)
@@ -124,39 +124,39 @@ struct ProfilesPage: View {
     private var detail: some View {
         let app = selectedApp
         return VStack(alignment: .leading, spacing: 16) {
-            MMPageHeader(title: app?.name ?? "Tüm uygulamalar",
-                         subtitle: app.map { "\($0.name) öndeyken bu profil kendiliğinden devreye girer. Profili kaldırsan da atamalar kalır." }
-                            ?? "Genel atamalar, profili olmayan her uygulamada çalışır.") {
+            MMPageHeader(title: app?.name ?? L("Tüm uygulamalar"),
+                         subtitle: app.map { LF("%@ öndeyken bu profil kendiliğinden devreye girer. Profili kaldırsan da atamalar kalır.", $0.name) }
+                            ?? L("Genel atamalar, profili olmayan her uygulamada çalışır.")) {
                 HStack(spacing: 10) {
                     if app != nil && store.profiles.contains(where: { $0.bundleID == selection }) {
-                        MMSecondaryButton("Profili kaldır") { removing = true }
+                        MMSecondaryButton(L("Profili kaldır")) { removing = true }
                     }
-                    MMPrimaryButton(app != nil ? "Bu uygulama için hareket ekle" : "Hareket ekle", "plus") {
+                    MMPrimaryButton(app != nil ? L("Bu uygulama için hareket ekle") : L("Hareket ekle"), "plus") {
                         adding = true
                     }
                 }
             }
             if apps.isEmpty && app == nil {
-                MMBanner(kind: .info, title: "Henüz uygulamaya özel profil yok",
-                         message: "Bir uygulamada genel atamadan farklı davranmak için \"Uygulama ekle\" ile başla; o uygulamadaki atamalar genel atamaların önüne geçer.")
+                MMBanner(kind: .info, title: L("Henüz uygulamaya özel profil yok"),
+                         message: L("Bir uygulamada genel atamadan farklı davranmak için 'Uygulama ekle' ile başla; o uygulamadaki atamalar genel atamaların önüne geçer."))
             }
-            MMSectionLabel("Atamalar")
+            MMSectionLabel(L("Atamalar"))
             BindingListView(scope: app?.id)
                 .frame(maxHeight: .infinity)
             if app != nil { testArea }
         }
         .padding(.horizontal, 28).padding(.vertical, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .confirmationDialog("Profil kaldırılsın mı?", isPresented: $removing) {
-            Button("Profili kaldır", role: .destructive) {
+        .confirmationDialog(L("Profil kaldırılsın mı?"), isPresented: $removing) {
+            Button(L("Profili kaldır"), role: .destructive) {
                 if let id = selection {
                     store.removeProfile(bundleID: id)
                     if !store.bindings.contains(where: { $0.appBundleID == id }) { selection = nil }
                 }
             }
-            Button("Vazgeç", role: .cancel) {}
+            Button(L("Vazgeç"), role: .cancel) {}
         } message: {
-            Text("Yalnız uygulama listeden çıkar; o uygulamadaki atamalar silinmez.")
+            Text(L("Yalnız uygulama listeden çıkar; o uygulamadaki atamalar silinmez."))
         }
     }
 
@@ -166,10 +166,10 @@ struct ProfilesPage: View {
             Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
                 .font(.system(size: 36, weight: .light)).foregroundStyle(MM.accentText)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Deneme alanı").font(.system(size: 14, weight: .semibold)).foregroundStyle(MM.accentText)
-                Text("Burada orta tuşla sürükle; gelen olay burada görünür.")
+                Text(L("Deneme alanı")).font(.system(size: 14, weight: .semibold)).foregroundStyle(MM.accentText)
+                Text(L("Burada orta tuşla sürükle; gelen olay burada görünür."))
                     .font(.system(size: 13)).foregroundStyle(MM.accentText)
-                Text(model.lastAction)
+                Text(model.lastAction ?? L("Henüz yok"))
                     .font(.system(size: 12, design: .monospaced)).foregroundStyle(MM.text)
                     .padding(.horizontal, 8).padding(.vertical, 4)
                     .background(MM.card, in: RoundedRectangle(cornerRadius: 6, style: .continuous))

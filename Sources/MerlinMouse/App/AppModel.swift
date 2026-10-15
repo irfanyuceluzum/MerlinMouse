@@ -20,11 +20,18 @@ final class AppModel: ObservableObject {
     @Published var trusted = false
     @Published var miceCount = 0
     @Published var deviceInfo = ""
-    @Published var lastAction = "Henüz yok"
+    /// Son eylemin metni; nil iken arayüz "Henüz yok" gösterir.
+    @Published var lastAction: String?
     @Published var liveTouches: [Touch] = []
     @Published var warnings: [Warning] = []
+    /// İzin sıfırlama başarısız olduysa doğru; yönerge dil değişince de güncel kalsın diye metin hesaplanır.
+    @Published var permissionResetFailed = false
     /// İzin sıfırlama başarısız olursa kullanıcıya gösterilen yönerge.
-    @Published var permissionHelp: String?
+    var permissionHelp: String? {
+        permissionResetFailed
+            ? L("Sıfırlanamadı. Sistem Ayarları › Gizlilik ve Güvenlik › Erişilebilirlik'te Merlin Mouse'u – ile silip + ile /Applications/MerlinMouse.app'i yeniden ekle.")
+            : nil
+    }
     /// Ana pencerenin açılması istenen sayfa (`MainWindow.Page.rawValue`); pencere görünce sıfırlar.
     @Published var requestedPage: String?
     @Published private(set) var mouseImage: NSImage?
@@ -36,6 +43,7 @@ final class AppModel: ObservableObject {
     func start() {
         Log.write("Başladı · sürüm \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?")")
         settings.applyAppearance()
+        Localization.apply()
         // Olay yakalayıcı başlamadan atamalar yüklensin.
         _ = BindingStore.shared
         TouchMonitor.shared.onFrame = { [weak self] touches in self?.liveTouches = touches }
@@ -193,7 +201,7 @@ final class AppModel: ObservableObject {
     /// Eski (yeniden derleme yüzünden geçersiz kalan) Erişilebilirlik kaydını siler, izni yeniden ister.
     func resetAccessibilityPermission() {
         let bundleID = Bundle.main.bundleIdentifier ?? "dev.merlinmouse.MerlinMouse"
-        permissionHelp = nil
+        permissionResetFailed = false
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
@@ -210,7 +218,7 @@ final class AppModel: ObservableObject {
             DispatchQueue.main.async {
                 guard let self else { return }
                 if !ok {
-                    self.permissionHelp = "Sıfırlanamadı. Sistem Ayarları › Gizlilik ve Güvenlik › Erişilebilirlik'te Merlin Mouse'u – ile silip + ile /Applications/MerlinMouse.app'i yeniden ekle."
+                    self.permissionResetFailed = true
                 }
                 self.checkTrust(prompt: true)
                 self.openAccessibilitySettings()

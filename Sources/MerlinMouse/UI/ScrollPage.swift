@@ -7,23 +7,23 @@ struct ScrollPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            MMPageHeader(title: "Kaydırma",
-                         subtitle: "Orta tuşla çalışırken ve 3D programlarda Magic Mouse kaydırmasını denetle.")
+            MMPageHeader(title: L("Kaydırma"),
+                         subtitle: L("Orta tuşla çalışırken ve 3D programlarda Magic Mouse kaydırmasını denetle."))
             MMCard {
                 VStack(spacing: 0) {
-                    cardTitle("Kaydırma ve yakınlaştırma")
-                    MMSwitchRow(title: "Sürüklerken kaydırmayı engelle",
-                                subtitle: "Model döndürürken istemeden yakınlaşmaz",
+                    cardTitle(L("Kaydırma ve yakınlaştırma"))
+                    MMSwitchRow(title: L("Sürüklerken kaydırmayı engelle"),
+                                subtitle: L("Model döndürürken istemeden yakınlaşmaz"),
                                 isOn: $s.blockScrollWhileDragging)
                     MMDivider()
-                    MMSwitchRow(title: "Ataleti kapat, adım adım yakınlaştır",
-                                subtitle: "3D programlarda Magic Mouse kaydırması tekerlek gibi davranır",
+                    MMSwitchRow(title: L("Ataleti kapat, adım adım yakınlaştır"),
+                                subtitle: L("3D programlarda Magic Mouse kaydırması tekerlek gibi davranır"),
                                 isOn: $s.calm3DScroll)
                 }
             }
             MMCard {
                 VStack(spacing: 0) {
-                    cardTitle("Öndeki uygulama")
+                    cardTitle(L("Öndeki uygulama"))
                     HStack(spacing: 8) {
                         Text(front.name.isEmpty ? "—" : front.name)
                             .font(.system(size: 13.5, weight: .medium)).foregroundStyle(MM.text)

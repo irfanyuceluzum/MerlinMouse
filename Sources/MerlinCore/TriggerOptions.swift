@@ -55,11 +55,11 @@ public enum TriggerOptions {
         guard modifier == .none else { return nil }
         switch kind {
         case .press where fingers == 1:
-            return "Sol bölgeye basmak normal sol tıklamadır; değiştirilemez."
+            return MerlinText.t("Sol bölgeye basmak normal sol tıklamadır; değiştirilemez.")
         case .tap where fingers == 1:
-            return "Tek parmakla dokunma yalnız arka (logo) bölgesinde atanabilir; başka yerde fareyi tutarken kazara tetiklenir."
+            return MerlinText.t("Tek parmakla dokunma yalnız arka (logo) bölgesinde atanabilir; başka yerde fareyi tutarken kazara tetiklenir.")
         case .swipe where fingers < 3:
-            return "Bir ve iki parmakla kaydırma macOS kaydırmasıdır."
+            return MerlinText.t("Bir ve iki parmakla kaydırma macOS kaydırmasıdır.")
         default:
             return nil
         }

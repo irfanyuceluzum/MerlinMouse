@@ -4,6 +4,13 @@
 <dict>
     <key>CFBundleIdentifier</key>
     <string>dev.merlinmouse.MerlinMouse</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>tr</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>tr</string>
+        <string>en</string>
+    </array>
     <key>CFBundleName</key>
     <string>Merlin Mouse</string>
     <key>CFBundleDisplayName</key>

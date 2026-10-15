@@ -13,7 +13,9 @@ struct MigrationPage: View {
     @State private var selected = Set<Int>()
     @State private var imported: [BTTItem] = []
 
-    private let steps = ["BTT'yi tara", "Devralınacakları seç", "BTT'de kapat", "BTT'yi bırak"]
+    private var steps: [String] {
+        [L("BTT'yi tara"), L("Devralınacakları seç"), L("BTT'de kapat"), L("BTT'yi bırak")]
+    }
 
     /// Listedeki bir satırın hesaplanmış durumu.
     private struct Row: Identifiable {
@@ -29,8 +31,8 @@ struct MigrationPage: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                MMPageHeader(title: "BTT'den geçiş",
-                             subtitle: "BetterTouchTool'daki Magic Mouse atamalarını Merlin Mouse'a taşı. BTT'de hiçbir şey değiştirilmez; yalnız okunur.")
+                MMPageHeader(title: L("BTT'den geçiş"),
+                             subtitle: L("BetterTouchTool'daki Magic Mouse atamalarını Merlin Mouse'a taşı. BTT'de hiçbir şey değiştirilmez; yalnız okunur."))
                 stepper
                 switch step {
                 case 1: stepScan
@@ -69,21 +71,21 @@ struct MigrationPage: View {
     private var stepScan: some View {
         VStack(alignment: .leading, spacing: 14) {
             if let errorText {
-                MMBanner(kind: .warning, title: "Tarama yapılamadı", message: errorText,
-                         actionTitle: "Tamam") { self.errorText = nil }
+                MMBanner(kind: .warning, title: L("Tarama yapılamadı"), message: errorText,
+                         actionTitle: L("Tamam")) { self.errorText = nil }
             }
             MMCard(padding: 20) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("BetterTouchTool'u tara").font(.system(size: 16, weight: .semibold)).foregroundStyle(MM.text)
-                    Text("BetterTouchTool açıkken Merlin Mouse atamalarını okur ve Magic Mouse hareketlerini listeler. İlk seferde macOS Otomasyon izni ister. Hiçbir şey değiştirilmez, ham veri kaydedilmez.")
+                    Text(L("BetterTouchTool'u tara")).font(.system(size: 16, weight: .semibold)).foregroundStyle(MM.text)
+                    Text(L("BetterTouchTool açıkken Merlin Mouse atamalarını okur ve Magic Mouse hareketlerini listeler. İlk seferde macOS Otomasyon izni ister. Hiçbir şey değiştirilmez, ham veri kaydedilmez."))
                         .font(.system(size: 13)).foregroundStyle(MM.text2)
                         .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 12) {
                         if scanning {
                             ProgressView().controlSize(.small)
-                            Text("Taranıyor…").font(.system(size: 13)).foregroundStyle(MM.text2)
+                            Text(L("Taranıyor…")).font(.system(size: 13)).foregroundStyle(MM.text2)
                         } else {
-                            MMPrimaryButton("BTT'yi tara", "magnifyingglass") { startScan() }
+                            MMPrimaryButton(L("BTT'yi tara"), "magnifyingglass") { startScan() }
                         }
                     }
                 }
@@ -139,17 +141,17 @@ struct MigrationPage: View {
         let others = rows.filter { !$0.selectable }
         return VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("BetterTouchTool'da bulunan fare hareketleri")
+                Text(L("BetterTouchTool'da bulunan fare hareketleri"))
                     .font(.system(size: 20, weight: .semibold)).foregroundStyle(MM.text)
-                Text("Seçtiklerin Merlin Mouse'a aktarılır; böylece BTT'yi bırakınca bu hareketler kaybolmaz.")
+                Text(L("Seçtiklerin Merlin Mouse'a aktarılır; böylece BTT'yi bırakınca bu hareketler kaybolmaz."))
                     .font(.system(size: 13.5)).foregroundStyle(MM.text2)
             }
 
             MMCard {
                 VStack(spacing: 0) {
-                    sectionHeader("Magic Mouse · Merlin Mouse devralabilir", warn: false)
+                    sectionHeader(L("Magic Mouse · Merlin Mouse devralabilir"), warn: false)
                     if rows.isEmpty {
-                        Text("BTT'de Magic Mouse ataması bulunamadı.")
+                        Text(L("BTT'de Magic Mouse ataması bulunamadı."))
                             .font(.system(size: 13)).foregroundStyle(MM.text2)
                             .padding(20).frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -168,7 +170,7 @@ struct MigrationPage: View {
             if !lost.isEmpty {
                 MMCard {
                     VStack(spacing: 0) {
-                        sectionHeader("BTT'yi kaldırınca kaybolacaklar · Merlin Mouse devralamaz", warn: true)
+                        sectionHeader(L("BTT'yi kaldırınca kaybolacaklar · Merlin Mouse devralamaz"), warn: true)
                         ForEach(lost, id: \.name) { g in
                             HStack {
                                 Text(g.name).font(.system(size: 13.5, weight: .medium)).foregroundStyle(MM.text)
@@ -178,7 +180,7 @@ struct MigrationPage: View {
                             .padding(.horizontal, 20).padding(.vertical, 12)
                             MMDivider()
                         }
-                        Text("Kaldırmadan önce BTT'de gözden geçir; BTT'nin dışa aktarma yedeğini almanı öneririz.")
+                        Text(L("Kaldırmadan önce BTT'de gözden geçir; BTT'nin dışa aktarma yedeğini almanı öneririz."))
                             .font(.system(size: 12.5)).foregroundStyle(MM.text2)
                             .padding(.horizontal, 20).padding(.vertical, 12)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -188,9 +190,9 @@ struct MigrationPage: View {
 
             HStack(spacing: 12) {
                 Spacer(minLength: 0)
-                MMSecondaryButton("Şimdilik atla") { reset() }
+                MMSecondaryButton(L("Şimdilik atla")) { reset() }
                 let n = selected.count
-                MMPrimaryButton(n == 0 ? "Devral" : "\(n) hareketi devral") { importSelected(rows) }
+                MMPrimaryButton(n == 0 ? L("Devral") : LF("%lld hareketi devral", n)) { importSelected(rows) }
                     .opacity(n == 0 ? 0.45 : 1).allowsHitTesting(n > 0)
             }
         }
@@ -214,14 +216,14 @@ struct MigrationPage: View {
                 .accessibilityLabel(r.item.description)
             VStack(alignment: .leading, spacing: 2) {
                 Text(r.item.description).font(.system(size: 13.5, weight: .medium)).foregroundStyle(MM.text)
-                Text(r.item.enabled ? "BTT: \(r.item.actionName)" : "BTT'de kapalı · \(r.item.actionName)")
+                Text(r.item.enabled ? LF("BTT: %@", r.item.actionName) : LF("BTT'de kapalı · %@", r.item.actionName))
                     .font(.system(size: 12)).foregroundStyle(MM.text2).lineLimit(1)
             }
             Spacer(minLength: 8)
             Text("→ \(t?.title ?? "") · \(a?.title ?? "")")
                 .font(.system(size: 13, weight: .medium)).foregroundStyle(MM.accentText)
             if r.exists {
-                MMStatusBadge(kind: .free, label: "Zaten var")
+                MMStatusBadge(kind: .free, label: L("Zaten var"))
             } else if let k = r.status {
                 MMStatusBadge(kind: k)
             }
@@ -232,10 +234,10 @@ struct MigrationPage: View {
     private func grayRow(_ r: Row) -> some View {
         HStack(spacing: 12) {
             Toggle("", isOn: .constant(false)).labelsHidden().toggleStyle(.checkbox).disabled(true)
-            Text(r.item.description.isEmpty ? "Adsız hareket" : r.item.description)
+            Text(r.item.description.isEmpty ? L("Adsız hareket") : r.item.description)
                 .font(.system(size: 13.5)).foregroundStyle(MM.text2)
             Spacer(minLength: 8)
-            Text(r.note ?? "Devralınamıyor")
+            Text(r.note ?? L("Devralınamıyor"))
                 .font(.system(size: 12.5)).foregroundStyle(MM.text2)
                 .multilineTextAlignment(.trailing)
         }
@@ -245,7 +247,7 @@ struct MigrationPage: View {
     private func lostGroups(_ s: BTTScan) -> [(name: String, count: Int)] {
         var grouped: [String: Int] = [:]
         for (cls, n) in s.otherCounts { grouped[BTTImport.className(cls), default: 0] += n }
-        let order = ["Trackpad", "Klavye kısayolu", "Touch Bar", "Diğer tetikleyiciler"]
+        let order = [L("Trackpad"), L("Klavye kısayolu"), L("Touch Bar"), L("Diğer tetikleyiciler")]
         return order.compactMap { name in grouped[name].map { (name: name, count: $0) } }
     }
 
@@ -265,11 +267,11 @@ struct MigrationPage: View {
 
     private var stepClose: some View {
         VStack(alignment: .leading, spacing: 18) {
-            MMBanner(kind: .warning, title: "BTT'de bu hareketleri kapat",
-                     message: "BetterTouchTool › Magic Mouse'ta bu hareketleri kapat; yoksa eylem iki kez çalışır.")
+            MMBanner(kind: .warning, title: L("BTT'de bu hareketleri kapat"),
+                     message: L("BetterTouchTool › Magic Mouse'ta bu hareketleri kapat; yoksa eylem iki kez çalışır."))
             MMCard {
                 VStack(spacing: 0) {
-                    sectionHeader("Devralınan hareketler", warn: false)
+                    sectionHeader(L("Devralınan hareketler"), warn: false)
                     ForEach(imported) { item in
                         HStack {
                             Text(item.description).font(.system(size: 13.5, weight: .medium)).foregroundStyle(MM.text)
@@ -284,8 +286,8 @@ struct MigrationPage: View {
             }
             HStack(spacing: 12) {
                 Spacer(minLength: 0)
-                MMSecondaryButton("BetterTouchTool'u aç", "arrow.up.forward.app") { openBTT() }
-                MMPrimaryButton("Kapattım") { step = 4 }
+                MMSecondaryButton(L("BetterTouchTool'u aç"), "arrow.up.forward.app") { openBTT() }
+                MMPrimaryButton(L("Kapattım")) { step = 4 }
             }
         }
     }
@@ -302,12 +304,13 @@ struct MigrationPage: View {
         return VStack(alignment: .leading, spacing: 18) {
             MMCard(padding: 20) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("BTT'yi artık bırakabilirsin").font(.system(size: 18, weight: .semibold)).foregroundStyle(MM.text)
-                    Text(imported.isEmpty ? "Hiçbir hareket devralınmadı."
-                                          : "\(imported.count) hareket Merlin Mouse'a devralındı.")
+                    Text(L("BTT'yi artık bırakabilirsin")).font(.system(size: 18, weight: .semibold)).foregroundStyle(MM.text)
+                    Text(imported.isEmpty ? L("Hiçbir hareket devralınmadı.")
+                                          : LF("%lld hareket Merlin Mouse'a devralındı.", imported.count))
                         .font(.system(size: 13.5)).foregroundStyle(MM.text)
                     if !lost.isEmpty {
-                        Text("BTT'yi kaldırırsan şunlar kaybolur: " + lost.map { "\($0.count) \($0.name.lowercased())" }.joined(separator: ", ") + ".")
+                        Text(LF("BTT'yi kaldırırsan şunlar kaybolur: %@.",
+                                lost.map { "\($0.count) \($0.name.lowercased())" }.joined(separator: ", ")))
                             .font(.system(size: 13)).foregroundStyle(MM.warnText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -316,7 +319,7 @@ struct MigrationPage: View {
             }
             HStack {
                 Spacer(minLength: 0)
-                MMPrimaryButton("Bitti") { reset() }
+                MMPrimaryButton(L("Bitti")) { reset() }
             }
         }
     }

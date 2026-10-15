@@ -100,4 +100,45 @@ final class ZoneLayoutTests: XCTestCase {
         XCTAssertEqual(ZoneLayout.standard.moving(.front, to: 0.0).frontLimit, 0.2)
         XCTAssertEqual(ZoneLayout.standard.moving(.front, to: 1.0).frontLimit, 0.6)
     }
+
+    // MARK: centerTop
+
+    func testCenterTopDefaults() {
+        XCTAssertEqual(ZoneLayout.standard.centerTop, 1.0)
+        XCTAssertEqual(ZoneLayout.symmetric(width: 0.4).centerTop, 1.0)
+        XCTAssertEqual(ZoneLayout(leftEdge: 0.3, rightEdge: 0.6, frontLimit: 0.5).centerTop, 1.0)
+        XCTAssertEqual(ZoneLayout.standard.centerHeight, 0.6, accuracy: 1e-9)
+    }
+
+    func testDecodeOldJSONWithoutCenterTop() throws {
+        let json = #"{"leftEdge":0.3,"rightEdge":0.6,"frontLimit":0.5}"#.data(using: .utf8)!
+        let l = try JSONDecoder().decode(ZoneLayout.self, from: json)
+        XCTAssertEqual(l.centerTop, 1.0)
+        XCTAssertEqual(l.leftEdge, 0.3)
+    }
+
+    func testCenterTopRoundTrip() throws {
+        let l = ZoneLayout(leftEdge: 0.3, rightEdge: 0.6, frontLimit: 0.4, centerTop: 0.8)
+        let back = try JSONDecoder().decode(ZoneLayout.self, from: JSONEncoder().encode(l))
+        XCTAssertEqual(back, l)
+    }
+
+    func testCenterTopClamp() {
+        let low = ZoneLayout(leftEdge: 0.3, rightEdge: 0.6, frontLimit: 0.4, centerTop: 0.1).clamped()
+        XCTAssertEqual(low.centerTop, 0.55, accuracy: 1e-9)
+        let high = ZoneLayout(leftEdge: 0.3, rightEdge: 0.6, frontLimit: 0.4, centerTop: 3).clamped()
+        XCTAssertEqual(high.centerTop, 1.0)
+        // frontLimit kenetlenince centerTop da ona göre en az 0.15 yukarıda kalır.
+        let l = ZoneLayout(leftEdge: 0.3, rightEdge: 0.6, frontLimit: 0.9, centerTop: 0.7).clamped()
+        XCTAssertEqual(l.frontLimit, 0.6)
+        XCTAssertEqual(l.centerTop, 0.75, accuracy: 1e-9)
+    }
+
+    func testMovingCenterTop() {
+        let l = ZoneLayout.standard.moving(.centerTop, to: 0.8)
+        XCTAssertEqual(l.centerTop, 0.8, accuracy: 1e-9)
+        XCTAssertEqual(l.frontLimit, 0.4)
+        XCTAssertEqual(ZoneLayout.standard.moving(.centerTop, to: 0.0).centerTop, 0.55, accuracy: 1e-9)
+        XCTAssertEqual(ZoneLayout.standard.moving(.centerTop, to: 2.0).centerTop, 1.0)
+    }
 }

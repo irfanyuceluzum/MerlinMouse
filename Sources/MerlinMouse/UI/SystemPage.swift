@@ -31,11 +31,11 @@ struct SystemPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            MMPageHeader(title: "macOS sistem hareketleri",
-                         subtitle: "Apple'ın Magic Mouse için ayırdığı hareketler. Açık olanlara atama yapılırsa Merlin Mouse uyarır.") {
+            MMPageHeader(title: L("macOS sistem hareketleri"),
+                         subtitle: L("Apple'ın Magic Mouse için ayırdığı hareketler. Açık olanlara atama yapılırsa Merlin Mouse uyarır.")) {
                 HStack(spacing: 8) {
-                    MMSecondaryButton("Yeniden tara", "arrow.clockwise") { state.refresh() }
-                    MMPrimaryButton("Sistem Ayarları › Fare") {
+                    MMSecondaryButton(L("Yeniden tara"), "arrow.clockwise") { state.refresh() }
+                    MMPrimaryButton(L("Sistem Ayarları › Fare")) {
                         if let url = URL(string: "x-apple.systempreferences:com.apple.Mouse-Settings.extension") {
                             NSWorkspace.shared.open(url)
                         }
@@ -54,7 +54,8 @@ struct SystemPage: View {
         let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         return HStack(spacing: 10) {
             Circle().fill(MM.okDot).frame(width: 8, height: 8)
-            Text("Bu Mac'ten okundu · macOS \(osVersion) · Magic Mouse \(model.miceCount > 0 ? "bağlı" : "bağlı değil") · Ayarlar değişince liste kendiliğinden güncellenir")
+            Text(LF("Bu Mac'ten okundu · macOS %@ · Magic Mouse %@ · Ayarlar değişince liste kendiliğinden güncellenir",
+                    osVersion, model.miceCount > 0 ? L("bağlı") : L("bağlı değil")))
                 .font(.system(size: 13)).foregroundStyle(MM.text2)
             Spacer(minLength: 0)
         }
@@ -67,15 +68,15 @@ struct SystemPage: View {
         MMCard {
             VStack(spacing: 0) {
                 gridRow {
-                    MMSectionLabel("Hareket"); MMSectionLabel("macOS görevi")
-                    MMSectionLabel("Bu Mac'te"); MMSectionLabel("Merlin Mouse için")
+                    MMSectionLabel(L("Hareket")); MMSectionLabel(L("macOS görevi"))
+                    MMSectionLabel(L("Bu Mac'te")); MMSectionLabel(L("Merlin Mouse için"))
                 }
                 .padding(.vertical, 10)
                 .overlay(alignment: .bottom) { Rectangle().fill(MM.line).frame(height: 1) }
                 ScrollView {
                     VStack(spacing: 0) {
-                        group("Fare ayarları", state.rows.filter { !isKeyboard($0) })
-                        group("Klavye + fare", state.rows.filter { isKeyboard($0) })
+                        group(L("Fare ayarları"), state.rows.filter { !isKeyboard($0) })
+                        group(L("Klavye + fare"), state.rows.filter { isKeyboard($0) })
                     }
                 }
                 Spacer(minLength: 0)
@@ -115,7 +116,9 @@ struct SystemPage: View {
 
     private func noteColor(_ r: SystemGestureRow) -> Color {
         switch r.status {
-        case .on, .always: return r.note.contains("engellen") ? MM.accentText : MM.warnText
+        case .on, .always:
+            // Çevrilmiş metinde arama yapmak yerine kataloğun "engellenir" notuyla karşılaştırılır.
+            return r.note == L("Orta tuşla sürüklerken engellenir") ? MM.accentText : MM.warnText
         case .appLevel: return MM.bttText
         case .off: return MM.text2
         }
@@ -124,10 +127,10 @@ struct SystemPage: View {
     private func chip(_ status: SystemGestureStatus) -> some View {
         let spec: (String, Color, Color)
         switch status {
-        case .on: spec = ("Açık", MM.warnBg, MM.warnText)
-        case .off: spec = ("Kapalı", MM.neuBg, MM.neuText)
-        case .always: spec = ("Her zaman", MM.warnBg, MM.warnText)
-        case .appLevel: spec = ("Uygulama içi", MM.bttBg, MM.bttText)
+        case .on: spec = (L("Açık"), MM.warnBg, MM.warnText)
+        case .off: spec = (L("Kapalı"), MM.neuBg, MM.neuText)
+        case .always: spec = (L("Her zaman"), MM.warnBg, MM.warnText)
+        case .appLevel: spec = (L("Uygulama içi"), MM.bttBg, MM.bttText)
         }
         return Text(spec.0).font(.system(size: 12, weight: .semibold)).foregroundStyle(spec.2)
             .padding(.horizontal, 9).padding(.vertical, 3)
@@ -136,7 +139,7 @@ struct SystemPage: View {
 
     private var freeStrip: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("macOS'un Magic Mouse'ta kullanmadığı, serbest hareketler")
+            Text(L("macOS'un Magic Mouse'ta kullanmadığı, serbest hareketler"))
                 .font(.system(size: 12, weight: .semibold)).foregroundStyle(MM.accentText)
             FlowLayout(spacing: 8) {
                 ForEach(SystemGestureCatalog.freeGestures, id: \.self) { g in

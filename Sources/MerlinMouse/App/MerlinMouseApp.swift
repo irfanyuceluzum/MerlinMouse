@@ -12,6 +12,8 @@ struct MerlinMouseApp: App {
             print("Bulunan Magic Mouse: \(found) · \(TouchMonitor.shared.deviceDescription)")
             exit(0)
         }
+        // İlk görünüm çizilmeden önce seçili dil bağlanır.
+        Localization.apply()
     }
 
     var body: some Scene {

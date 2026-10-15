@@ -192,4 +192,12 @@ final class GestureRecognizerTests: XCTestCase {
         XCTAssertEqual(run(&r, xs: [0.6], duration: 0.1), [.tap(fingers: 1, zone: .right)])
         XCTAssertEqual(run(&r, xs: [0.1], start: 1, duration: 0.1), [.tap(fingers: 1, zone: .left)])
     }
+
+    func testTapZoneUsesCenterTop() {
+        var r = GestureRecognizer()
+        r.layout = ZoneLayout(leftEdge: 0.25, rightEdge: 0.75, frontLimit: 0.4, centerTop: 0.8)
+        XCTAssertEqual(run(&r, xs: [0.4], y: 0.9, duration: 0.1), [.tap(fingers: 1, zone: .left)])
+        XCTAssertEqual(run(&r, xs: [0.6], y: 0.9, start: 1, duration: 0.1), [.tap(fingers: 1, zone: .right)])
+        XCTAssertEqual(run(&r, xs: [0.4], y: 0.7, start: 2, duration: 0.1), [.tap(fingers: 1, zone: .center)])
+    }
 }

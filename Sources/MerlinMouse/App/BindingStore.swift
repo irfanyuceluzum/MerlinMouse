@@ -8,7 +8,13 @@ final class BindingStore: ObservableObject {
 
     @Published private(set) var set: BindingSet
     private(set) var index: BindingIndex
-    @Published private(set) var recoveryNotice: String?
+    /// Okunamayan dosyanın yedek adı; bildirim metni dil değişince de güncel kalsın diye hesaplanır.
+    @Published private(set) var recoveryBackupName: String?
+    var recoveryNotice: String? {
+        recoveryBackupName.map {
+            LF("Atama dosyası okunamadı; yedeği %@ olarak saklandı ve varsayılan atamalar yüklendi.", $0)
+        }
+    }
     private let file: BindingFileStore
 
     var bindings: [GestureBinding] { self.set.bindings }
@@ -54,7 +60,7 @@ final class BindingStore: ObservableObject {
         set = loaded
         index = BindingIndex(bindings: loaded.bindings)
         if let name = file.lastRecoveredBackupName {
-            recoveryNotice = "Atama dosyası okunamadı; yedeği \(name) olarak saklandı ve varsayılan atamalar yüklendi."
+            recoveryBackupName = name
         }
     }
 
@@ -88,7 +94,7 @@ final class BindingStore: ObservableObject {
         apply(next)
     }
 
-    func dismissRecoveryNotice() { recoveryNotice = nil }
+    func dismissRecoveryNotice() { recoveryBackupName = nil }
 
     /// Temel atamalar silinmez (BindingSetOps.remove).
     func remove(id: UUID) {

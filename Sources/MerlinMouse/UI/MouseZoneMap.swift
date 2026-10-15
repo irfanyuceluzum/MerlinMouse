@@ -38,7 +38,7 @@ struct MouseZoneMap: View {
         .coordinateSpace(name: "zoneMap")
         .frame(width: width, height: height)
         .accessibilityElement()
-        .accessibilityLabel("Magic Mouse dokunma haritası")
+        .accessibilityLabel(L("Magic Mouse dokunma haritası"))
     }
 
     private func bodyPath(_ s: CGFloat, inset: CGFloat = 0) -> Path {
@@ -84,28 +84,36 @@ struct MouseZoneMap: View {
         let frontBottom = b.minY + b.height * CGFloat(1 - layout.frontLimit)
         let cx0 = b.minX + b.width * CGFloat(layout.leftEdge)
         let cx1 = b.minX + b.width * CGFloat(layout.rightEdge)
+        let ctop = b.minY + b.height * CGFloat(1 - layout.centerTop)
+        let midX = (cx0 + cx1) / 2
 
         var inner = ctx
         inner.clip(to: bodyPath(s))
 
         if showLabels {
             // Orta bölge
-            inner.fill(Path(CGRect(x: cx0 * s, y: b.minY * s, width: (cx1 - cx0) * s, height: (frontBottom - b.minY) * s)),
+            inner.fill(Path(CGRect(x: cx0 * s, y: ctop * s, width: (cx1 - cx0) * s, height: (frontBottom - ctop) * s)),
                        with: .color(MM.accent.opacity(0.16)))
             // Sağ bölge: ikincil tıklama ise taralı turuncu
             if secondaryRightZone {
-                let rect = CGRect(x: cx1 * s, y: b.minY * s, width: (b.maxX - cx1) * s, height: (frontBottom - b.minY) * s)
-                var hatch = inner
-                hatch.clip(to: Path(rect))
-                hatch.fill(Path(rect), with: .color(Self.orange.opacity(0.10)))
-                var lines = Path()
-                var x = rect.minX - rect.height
-                while x < rect.maxX {
-                    lines.move(to: CGPoint(x: x, y: rect.maxY))
-                    lines.addLine(to: CGPoint(x: x + rect.height, y: rect.minY))
-                    x += 14 * s * 1.41
+                // Sağ sütun + orta bölgenin üstünde kalan sağ yarı.
+                var rects = [CGRect(x: cx1 * s, y: b.minY * s, width: (b.maxX - cx1) * s, height: (frontBottom - b.minY) * s)]
+                if ctop > b.minY {
+                    rects.append(CGRect(x: midX * s, y: b.minY * s, width: (cx1 - midX) * s, height: (ctop - b.minY) * s))
                 }
-                hatch.stroke(lines, with: .color(Self.orange.opacity(0.45)), lineWidth: 5 * s)
+                for rect in rects {
+                    var hatch = inner
+                    hatch.clip(to: Path(rect))
+                    hatch.fill(Path(rect), with: .color(Self.orange.opacity(0.10)))
+                    var lines = Path()
+                    var x = rect.minX - rect.height
+                    while x < rect.maxX {
+                        lines.move(to: CGPoint(x: x, y: rect.maxY))
+                        lines.addLine(to: CGPoint(x: x + rect.height, y: rect.minY))
+                        x += 14 * s * 1.41
+                    }
+                    hatch.stroke(lines, with: .color(Self.orange.opacity(0.45)), lineWidth: 5 * s)
+                }
             }
             // Arka (logo) bölgesi
             inner.fill(Path(CGRect(x: b.minX * s, y: frontBottom * s, width: b.width * s, height: (b.maxY - frontBottom) * s)),
@@ -114,9 +122,21 @@ struct MouseZoneMap: View {
             let dash = StrokeStyle(lineWidth: max(1, 3 * s), dash: [10 * s, 7 * s])
             for x in [cx0, cx1] {
                 var p = Path()
-                p.move(to: CGPoint(x: x * s, y: b.minY * s))
+                p.move(to: CGPoint(x: x * s, y: ctop * s))
                 p.addLine(to: CGPoint(x: x * s, y: frontBottom * s))
                 inner.stroke(p, with: .color(MM.accent), style: dash)
+            }
+            if ctop > b.minY {
+                // Orta bölgenin üst kenarı ve üstündeki alanı sola/sağa bölen ince ayırıcı.
+                var top = Path()
+                top.move(to: CGPoint(x: cx0 * s, y: ctop * s))
+                top.addLine(to: CGPoint(x: cx1 * s, y: ctop * s))
+                inner.stroke(top, with: .color(MM.accent), style: dash)
+                var div = Path()
+                div.move(to: CGPoint(x: midX * s, y: b.minY * s))
+                div.addLine(to: CGPoint(x: midX * s, y: ctop * s))
+                inner.stroke(div, with: .color(Color(red: 0.43, green: 0.43, blue: 0.46).opacity(0.6)),
+                             style: StrokeStyle(lineWidth: max(0.8, 1.5 * s), dash: [4 * s, 6 * s]))
             }
             var sep = Path()
             sep.move(to: CGPoint(x: b.minX * s, y: frontBottom * s))
@@ -125,14 +145,14 @@ struct MouseZoneMap: View {
 
             // Etiketler: fare yüzeyi hep açık renk olduğundan sabit koyu yazı.
             let labelY = (b.minY + 117) * s
-            ctx.draw(Text("Sol").font(.system(size: 30 * s)).foregroundColor(Color(red: 0x48 / 255, green: 0x48 / 255, blue: 0x4D / 255)),
+            ctx.draw(Text(L("Sol")).font(.system(size: 30 * s)).foregroundColor(Color(red: 0x48 / 255, green: 0x48 / 255, blue: 0x4D / 255)),
                      at: CGPoint(x: (b.minX + cx0) / 2 * s, y: labelY))
-            ctx.draw(Text("Orta").font(.system(size: 30 * s, weight: .semibold))
+            ctx.draw(Text(L("Orta")).font(.system(size: 30 * s, weight: .semibold))
                         .foregroundColor(Color(red: 0x24 / 255, green: 0x49 / 255, blue: 0xB5 / 255)),
-                     at: CGPoint(x: (cx0 + cx1) / 2 * s, y: labelY))
-            ctx.draw(Text("Sağ").font(.system(size: 30 * s)).foregroundColor(Color(red: 0x8F / 255, green: 0x4A / 255, blue: 0)),
+                     at: CGPoint(x: midX * s, y: max(labelY, (ctop + 40) * s)))
+            ctx.draw(Text(L("Sağ")).font(.system(size: 30 * s)).foregroundColor(Color(red: 0x8F / 255, green: 0x4A / 255, blue: 0)),
                      at: CGPoint(x: (cx1 + b.maxX) / 2 * s, y: labelY))
-            ctx.draw(Text("Arka").font(.system(size: 30 * s))
+            ctx.draw(Text(L("Arka")).font(.system(size: 30 * s))
                         .foregroundColor(Color(red: 0x65 / 255, green: 0x34 / 255, blue: 0xA8 / 255)),
                      at: CGPoint(x: b.midX * s, y: (frontBottom + (b.maxY - frontBottom) * 0.45) * s))
         }
@@ -156,6 +176,7 @@ struct MouseZoneMap: View {
         let cx0 = b.minX + b.width * CGFloat(layout.leftEdge)
         let cx1 = b.minX + b.width * CGFloat(layout.rightEdge)
         let midY = (b.minY + (frontBottom - b.minY) * 0.55) * s
+        let ctop = b.minY + b.height * CGFloat(1 - layout.centerTop)
         return ZStack {
             handle(vertical: true)
                 .gesture(drag { x, _ in Settings.shared.zoneLayout = Settings.shared.zoneLayout.moving(.left, to: Double((x / s - b.minX) / b.width)) })
@@ -166,6 +187,9 @@ struct MouseZoneMap: View {
             handle(vertical: false)
                 .gesture(drag { _, y in Settings.shared.zoneLayout = Settings.shared.zoneLayout.moving(.front, to: Double(1 - (y / s - b.minY) / b.height)) })
                 .position(x: b.midX * s, y: frontBottom * s)
+            handle(vertical: false)
+                .gesture(drag { _, y in Settings.shared.zoneLayout = Settings.shared.zoneLayout.moving(.centerTop, to: Double(1 - (y / s - b.minY) / b.height)) })
+                .position(x: (cx0 + cx1) / 2 * s, y: ctop * s)
         }
         .frame(width: width, height: height)
     }
@@ -187,6 +211,6 @@ struct MouseZoneMap: View {
         .onHover { inside in
             if inside { (vertical ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).push() } else { NSCursor.pop() }
         }
-        .accessibilityLabel(vertical ? "Bölge sınırı, sürükleyerek boyutlandır" : "Ön / arka sınırı, sürükleyerek boyutlandır")
+        .accessibilityLabel(vertical ? L("Bölge sınırı, sürükleyerek boyutlandır") : L("Ön / arka sınırı, sürükleyerek boyutlandır"))
     }
 }

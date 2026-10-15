@@ -16,6 +16,12 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/MerlinMouse "$APP/Contents/MacOS/MerlinMouse"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# Dil paketleri (Resources/*.lproj): İngilizce metin tablosu ve Info.plist çevirisi.
+for lproj in Resources/*.lproj; do
+    if [ -d "$lproj" ]; then
+        ditto "$lproj" "$APP/Contents/Resources/$(basename "$lproj")"
+    fi
+done
 
 SIGN_ID="${SIGN_ID:-$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development/ { print $2; exit }')}"
 if [ -n "$SIGN_ID" ]; then

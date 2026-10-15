@@ -10,11 +10,11 @@ public enum BindingValidation {
         var missing: String?
         switch binding.action {
         case .shortcut(let combo):
-            if combo.keyCode == 0 && combo.display.isEmpty { missing = "Kısayol kaydedilmedi" }
+            if combo.keyCode == 0 && combo.display.isEmpty { missing = MerlinText.t("Kısayol kaydedilmedi") }
         case .openApp(let path, _):
-            if path.isEmpty { missing = "Uygulama seçilmedi" }
+            if path.isEmpty { missing = MerlinText.t("Uygulama seçilmedi") }
         case .runShortcut(let name):
-            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { missing = "Kestirme adı boş" }
+            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { missing = MerlinText.t("Kestirme adı boş") }
         default:
             break
         }
@@ -42,11 +42,15 @@ public enum BindingValidation {
         let rivals = conflicts.filter { ($0.level == .replacesDisabled || $0.level == .duplicate) && !$0.keepsRival }
         guard let first = rivals.first else { return nil }
         let allClosed = rivals.allSatisfy { $0.level == .replacesDisabled }
-        let kapali = allClosed ? "kapalı " : ""
         if rivals.count == 1 {
-            return "Kaydedersen \(kapali)'\(first.subject ?? "başka bir")' ataması silinir ve yerine bu geçer."
+            let subject = first.subject ?? MerlinText.t("başka bir")
+            return allClosed
+                ? MerlinText.f("Kaydedersen kapalı '%@' ataması silinir ve yerine bu geçer.", subject)
+                : MerlinText.f("Kaydedersen '%@' ataması silinir ve yerine bu geçer.", subject)
         }
-        return "Kaydedersen \(kapali)\(rivals.count) atama silinir ve yerine bu geçer."
+        return allClosed
+            ? MerlinText.f("Kaydedersen kapalı %d atama silinir ve yerine bu geçer.", rivals.count)
+            : MerlinText.f("Kaydedersen %d atama silinir ve yerine bu geçer.", rivals.count)
     }
 
     /// Tek kartta gösterilecek en ağır çakışma.

@@ -71,4 +71,29 @@ final class PressResolverTests: XCTestCase {
         XCTAssertEqual(Zone.classify(x: 0.1, y: 0.4, layout: l), .left)
         XCTAssertEqual(Zone.classify(x: 0.1, y: 0.399, layout: l), .rear)
     }
+
+    func testClassifyAboveCenterTop() {
+        let l = ZoneLayout(leftEdge: 0.25, rightEdge: 0.75, frontLimit: 0.4, centerTop: 0.8)
+        XCTAssertEqual(Zone.classify(x: 0.4, y: 0.9, layout: l), .left)
+        XCTAssertEqual(Zone.classify(x: 0.6, y: 0.9, layout: l), .right)
+        XCTAssertEqual(Zone.classify(x: 0.5, y: 0.9, layout: l), .right) // tam orta çizgi sağa
+        XCTAssertEqual(Zone.classify(x: 0.4, y: 0.7, layout: l), .center)
+        XCTAssertEqual(Zone.classify(x: 0.4, y: 0.79, layout: l), .center)
+        XCTAssertEqual(Zone.classify(x: 0.1, y: 0.9, layout: l), .left)
+        XCTAssertEqual(Zone.classify(x: 0.9, y: 0.9, layout: l), .right)
+        XCTAssertEqual(Zone.classify(x: 0.5, y: 0.3, layout: l), .rear)
+        // centerTop 1.0: eski davranış.
+        let old = ZoneLayout(leftEdge: 0.25, rightEdge: 0.75, frontLimit: 0.4)
+        XCTAssertEqual(Zone.classify(x: 0.4, y: 1.0, layout: old), .center)
+        XCTAssertEqual(Zone.classify(x: 0.6, y: 1.0, layout: old), .center)
+    }
+
+    func testPressInCenterTopLeftHalfNoCandidate() {
+        let l = ZoneLayout(leftEdge: 0.25, rightEdge: 0.75, frontLimit: 0.4, centerTop: 0.8)
+        XCTAssertEqual(PressResolver.candidates(fingers: [TouchPoint(id: 1, x: 0.4, y: 0.9)], fnDown: false, layout: l), [])
+        XCTAssertEqual(PressResolver.candidates(fingers: [TouchPoint(id: 1, x: 0.6, y: 0.9)], fnDown: false, layout: l),
+                       [Trigger(kind: .press, fingers: 1, zone: .right)])
+        XCTAssertEqual(PressResolver.candidates(fingers: [TouchPoint(id: 1, x: 0.4, y: 0.7)], fnDown: false, layout: l),
+                       [Trigger(kind: .press, fingers: 1, zone: .center)])
+    }
 }

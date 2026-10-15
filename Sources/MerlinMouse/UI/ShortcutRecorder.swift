@@ -19,8 +19,8 @@ struct ShortcutRecorder: View {
     }
 
     private var label: String {
-        if recording { return "Bir tuşa bas… (Esc: iptal)" }
-        return combo.display.isEmpty ? "Kaydetmek için tıkla" : combo.display
+        if recording { return L("Bir tuşa bas… (Esc: iptal)") }
+        return combo.display.isEmpty ? L("Kaydetmek için tıkla") : combo.display
     }
 
     private func start() {
@@ -45,21 +45,23 @@ struct ShortcutRecorder: View {
         recording = false
     }
 
-    private static let keyNames: [UInt16: String] = [
+    /// Tuş adları kaydedildiği andaki dilde saklanır (KeyCombo.display).
+    private static var keyNames: [UInt16: String] { [
         123: "←", 124: "→", 125: "↓", 126: "↑",
-        49: "Boşluk", 36: "↩", 76: "↩", 48: "⇥", 51: "⌫", 53: "⎋",
+        49: L("Boşluk"), 36: "↩", 76: "↩", 48: "⇥", 51: "⌫", 53: "⎋",
         122: "F1", 120: "F2", 99: "F3", 118: "F4", 96: "F5", 97: "F6",
         98: "F7", 100: "F8", 101: "F9", 109: "F10", 103: "F11", 111: "F12",
-    ]
+    ] }
 
     static func combo(from event: NSEvent) -> KeyCombo {
         let flags = event.modifierFlags
-        let name = keyNames[event.keyCode]
+        let names = keyNames
+        let name = names[event.keyCode]
             ?? event.charactersIgnoringModifiers?.uppercased().trimmingCharacters(in: .whitespaces)
             ?? ""
-        let keyName = name.isEmpty ? "Tuş \(event.keyCode)" : name
+        let keyName = name.isEmpty ? LF("Tuş %lld", Int(event.keyCode)) : name
         // Ok ve F tuşları fn bayrağını kendiliğinden taşır; onu sayma.
-        let fnKey = flags.contains(.function) && keyNames[event.keyCode] == nil
+        let fnKey = flags.contains(.function) && names[event.keyCode] == nil
         var mods: [String] = []
         var shown = ""
         if flags.contains(.control) { mods.append("control"); shown += "⌃" }
