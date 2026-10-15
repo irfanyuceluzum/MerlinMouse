@@ -1,5 +1,7 @@
 # Merlin Mouse
 
+<img src="Resources/AppIcon-1024.png" alt="Merlin Mouse simgesi" width="128">
+
 Apple Magic Mouse için menü çubuğu uygulaması. Magic Mouse'un dokunmatik yüzeyini
 okuyup orta tuşu olmayan farede **orta tıklama ve orta tuşla sürükleme** sağlar;
 3D ve dilimleyici programlarda (Chitubox, Bambu Studio, Blender, Lychee…) görünümü

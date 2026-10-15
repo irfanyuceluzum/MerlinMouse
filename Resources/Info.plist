@@ -10,6 +10,8 @@
     <string>Merlin Mouse</string>
     <key>CFBundleExecutable</key>
     <string>MerlinMouse</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
