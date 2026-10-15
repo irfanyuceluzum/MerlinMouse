@@ -12,10 +12,14 @@ public final class BindingFileStore {
         self.log = log
     }
 
+    /// Son yüklemede bozuk dosya yedeklendiyse yedeğin adı; yoksa nil.
+    public private(set) var lastRecoveredBackupName: String?
+
     public var fileURL: URL { directory.appendingPathComponent("bindings.json") }
 
     public func load() -> BindingSet {
         let fm = FileManager.default
+        lastRecoveredBackupName = nil
         if !fm.fileExists(atPath: fileURL.path) {
             return fresh()
         }
@@ -30,6 +34,7 @@ public final class BindingFileStore {
             do {
                 try? fm.removeItem(at: backup)
                 try fm.moveItem(at: fileURL, to: backup)
+                lastRecoveredBackupName = backup.lastPathComponent
                 log("bindings.json okunamadı (\(error)); \(backup.lastPathComponent) olarak taşındı, eski ayarlardan yeniden üretildi")
             } catch {
                 log("bindings.json okunamadı ve yedeklenemedi: \(error)")

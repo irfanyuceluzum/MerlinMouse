@@ -24,8 +24,25 @@ public struct BindingIndex {
     }
 
     /// Önce uygulamaya özel, sonra genel.
+    /// Eşleşme yoksa geri düşer: tek parmak tap/doubleTap bölgesi → "Her yer";
+    /// 4 parmak → 3 parmak ("3+ parmak" atamaları).
     public func match(_ trigger: Trigger, bundleID: String?) -> GestureBinding? {
         let t = trigger.normalized
+        if let b = lookup(t, bundleID: bundleID) { return b }
+        if t.fingers == 1, t.zone != .any, t.kind == .tap || t.kind == .doubleTap {
+            var any = t
+            any.zone = .any
+            if let b = lookup(any, bundleID: bundleID) { return b }
+        }
+        if t.fingers == 4, t.kind != .hold {
+            var three = t
+            three.fingers = 3
+            if let b = lookup(three.normalized, bundleID: bundleID) { return b }
+        }
+        return nil
+    }
+
+    private func lookup(_ t: Trigger, bundleID: String?) -> GestureBinding? {
         if let id = bundleID, let b = perApp[id]?[t] { return b }
         return global[t]
     }
@@ -40,6 +57,10 @@ public struct BindingIndex {
     }
 
     public func hasDoubleTap(fingers: Int, zone: Zone = .any, bundleID: String? = nil) -> Bool {
-        hasBinding(kind: .doubleTap, fingers: fingers, zone: zone, bundleID: bundleID)
+        if hasBinding(kind: .doubleTap, fingers: fingers, zone: zone, bundleID: bundleID) { return true }
+        if fingers == 1, zone != .any {
+            return hasBinding(kind: .doubleTap, fingers: 1, zone: .any, bundleID: bundleID)
+        }
+        return false
     }
 }

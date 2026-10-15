@@ -23,6 +23,9 @@ final class AppModel: ObservableObject {
     @Published var lastAction = "Henüz yok"
     @Published var liveTouches: [Touch] = []
     @Published var warnings: [Warning] = []
+    /// Ana pencerenin açılması istenen sayfa (`MainWindow.Page.rawValue`); pencere görünce sıfırlar.
+    @Published var requestedPage: String?
+    @Published private(set) var mouseImage: NSImage?
 
     private var timer: Timer?
     private var ticks = 0
@@ -35,7 +38,13 @@ final class AppModel: ObservableObject {
         _ = BindingStore.shared
         TouchMonitor.shared.onFrame = { [weak self] touches in self?.liveTouches = touches }
         TouchMonitor.shared.onGesture = { GestureDispatcher.handle($0) }
+        mouseImage = MouseArtwork.load()
         updateGestureConfig()
+        FrontApp.shared.$bundleID
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateGestureConfig() }
+            .store(in: &cancellables)
         InputTap.shared.onAction = { [weak self] text in
             self?.lastAction = text
             Log.write(text)
@@ -77,14 +86,21 @@ final class AppModel: ObservableObject {
     /// Tanıyıcıya güncel bölge genişliğini ve (indeks kopyasıyla) çift dokunma sorgusunu verir.
     private func updateGestureConfig() {
         let index = BindingStore.shared.index
+        let bundleID = FrontApp.shared.bundleID
         TouchMonitor.shared.configure(zoneWidth: settings.zoneWidth) { fingers, zone in
-            index.hasDoubleTap(fingers: fingers, zone: zone)
+            index.hasDoubleTap(fingers: fingers, zone: zone, bundleID: bundleID)
+                || (fingers == 4 && index.hasDoubleTap(fingers: 3, zone: zone, bundleID: bundleID))
         }
     }
 
     private func tick() {
         ticks += 1
-        if !InputTap.shared.isRunning { checkTrust(prompt: false) }
+        // İzin, yakalayıcı çalışsa da her turda okunur (geri alınmayı da yakalar).
+        checkTrust(prompt: false)
+        if let until = settings.pausedUntil, Date() >= until {
+            resume()
+            Log.write("Duraklatma bitti")
+        }
         // Fare bulunamadıysa (Bluetooth yeni bağlandıysa) 10 sn'de bir yeniden tara.
         if miceCount <= 0 && ticks % 5 == 0 { startTouches() }
         if ticks % 5 == 0 { refreshWarnings() }
@@ -122,10 +138,45 @@ final class AppModel: ObservableObject {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: prompt] as CFDictionary
         let nowTrusted = AXIsProcessTrustedWithOptions(options)
         if nowTrusted != trusted || prompt { Log.write("Erişilebilirlik izni: \(nowTrusted ? "var" : "yok")") }
-        trusted = nowTrusted
+        if nowTrusted != trusted { trusted = nowTrusted }
         if trusted && !InputTap.shared.isRunning {
             Log.write(InputTap.shared.start() ? "Olay yakalayıcı çalışıyor" : "Olay yakalayıcı başlatılamadı")
         }
+    }
+
+    /// Belirli bir sayfa isteğini bırakır ve uygulamayı öne alır; pencereyi açmak çağıranın işidir (`openWindow`).
+    func openMainWindow(page: String?) {
+        requestedPage = page
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    var isPaused: Bool { PauseState(pausedUntil: settings.pausedUntil).isPaused(now: Date()) }
+
+    func pause(for interval: TimeInterval) {
+        settings.pausedUntil = PauseState.pausing(for: interval, from: Date()).pausedUntil
+        Log.write("Duraklatıldı · \(Int(interval / 60)) dk")
+        objectWillChange.send()
+    }
+
+    func resume() {
+        guard settings.pausedUntil != nil else { return }
+        settings.pausedUntil = nil
+        Log.write("Duraklatma kaldırıldı")
+        objectWillChange.send()
+    }
+
+    /// Verilen görseli uygulamanın fare görseli olarak kopyalar (varsa üzerine yazar) ve yükler.
+    func importMouseImage(from url: URL) throws {
+        let fm = FileManager.default
+        try fm.createDirectory(at: MouseArtwork.directory, withIntermediateDirectories: true)
+        if fm.fileExists(atPath: MouseArtwork.fileURL.path) { try fm.removeItem(at: MouseArtwork.fileURL) }
+        try fm.copyItem(at: url, to: MouseArtwork.fileURL)
+        mouseImage = MouseArtwork.load()
+    }
+
+    func removeMouseImage() {
+        try? FileManager.default.removeItem(at: MouseArtwork.fileURL)
+        mouseImage = nil
     }
 
     func openAccessibilitySettings() {
@@ -158,6 +209,16 @@ enum SystemCheck {
         return nil
     }
 
+    private static func globalInt(_ key: String) -> Int {
+        let v = CFPreferencesCopyAppValue(key as CFString, kCFPreferencesAnyApplication)
+        if let n = v as? NSNumber { return n.intValue != 0 ? 1 : 0 }
+        return 0
+    }
+
+    private static func universalAccessBool(_ key: String) -> Bool {
+        (CFPreferencesCopyAppValue(key as CFString, "com.apple.universalaccess" as CFString) as? NSNumber)?.boolValue ?? false
+    }
+
     /// Güncel macOS fare ayarları ve BetterTouchTool durumu.
     static func environment() -> ConflictEnvironment {
         ConflictEnvironment(
@@ -166,7 +227,9 @@ enum SystemCheck {
             twoFingerDoubleTap: mouseValue("MouseTwoFingerDoubleTapGesture") ?? 0,
             twoFingerHorizSwipe: mouseValue("MouseTwoFingerHorizSwipeGesture") ?? 0,
             bttRunning: NSWorkspace.shared.runningApplications
-                .contains { $0.bundleIdentifier == "com.hegenberg.BetterTouchTool" })
+                .contains { $0.bundleIdentifier == "com.hegenberg.BetterTouchTool" },
+            oneFingerHorizSwipePages: globalInt("AppleEnableMouseSwipeNavigateWithScrolls"),
+            controlScrollZoom: universalAccessBool("closeViewScrollWheelToggle"))
     }
 
     static func warnings(for bindings: [GestureBinding]) -> [Warning] {

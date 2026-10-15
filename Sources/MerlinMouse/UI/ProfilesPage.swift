@@ -1,79 +1,190 @@
 import SwiftUI
+import AppKit
 import MerlinCore
 
-/// Uygulamaya özel profiller.
+/// Uygulamaya özel profiller: solda uygulama listesi, sağda seçilen uygulamanın atamaları.
 struct ProfilesPage: View {
     @ObservedObject private var store = BindingStore.shared
+    @ObservedObject private var model = AppModel.shared
+    @ObservedObject private var front = FrontApp.shared
+    /// nil = "Tüm uygulamalar".
     @State private var selection: String?
-    @State private var extra: [AppChoice] = []
     @State private var adding = false
+    @State private var removing = false
 
-    /// Kapsamlı ataması olan ya da elle eklenen uygulamalar.
+    /// Profil listesi ∪ kapsamlı ataması olan uygulamalar.
     private var apps: [AppChoice] {
         var seen = Set<String>()
         var out: [AppChoice] = []
+        for p in store.profiles where seen.insert(p.bundleID).inserted {
+            out.append(AppChoice(id: p.bundleID, name: p.name))
+        }
         for b in store.bindings {
             if let id = b.appBundleID, seen.insert(id).inserted {
                 out.append(AppChoice(id: id, name: b.appName ?? id))
             }
         }
-        for e in extra where seen.insert(e.id).inserted { out.append(e) }
         return out.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    private var selectedApp: AppChoice? { apps.first { $0.id == selection } }
+
     var body: some View {
         HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
-                List(apps, selection: $selection) { app in
-                    Text(app.name).tag(app.id as String?)
-                }
-                Menu("Uygulama ekle") {
-                    ForEach(AppPicker.runningApps()) { app in
-                        Button(app.name) { add(app) }
-                    }
-                    Divider()
-                    Button("Diğer uygulama…") {
-                        if let p = AppPicker.pickApp(), let id = p.bundleID {
-                            add(AppChoice(id: id, name: p.name))
-                        }
-                    }
-                }
-                .padding([.horizontal, .bottom], 8)
-            }
-            .frame(width: 230)
-            Divider()
-            detail.frame(maxWidth: .infinity, maxHeight: .infinity)
+            appColumn
+            detail
         }
         .sheet(isPresented: $adding) {
-            if let app = apps.first(where: { $0.id == selection }) {
-                BindingEditorView(existing: nil, presetScope: app)
-            }
+            BindingEditorView(existing: nil, presetScope: selectedApp)
         }
     }
 
-    @ViewBuilder private var detail: some View {
-        if let app = apps.first(where: { $0.id == selection }) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text(app.name).font(.title2.weight(.semibold))
-                    Spacer()
-                    Button("Bu uygulama için hareket ekle") { adding = true }
-                }
-                BindingListView(scope: app.id)
-            }
-            .padding(20)
-        } else {
-            Text(apps.isEmpty
-                 ? "Henüz uygulamaya özel profil yok. Bir uygulamada genel atamadan farklı davranmak için \"Uygulama ekle\" ile başla; o uygulamadaki atamalar genel atamaların önüne geçer."
-                 : "Soldan bir uygulama seç.")
-                .font(.callout).foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(40)
+    // MARK: Uygulama sütunu
+
+    private func letterColors(_ name: String) -> (Color, Color) {
+        let sum = name.unicodeScalars.reduce(0) { $0 + Int($1.value) }
+        switch sum % 3 {
+        case 0: return (MM.bttBg, MM.bttText)
+        case 1: return (MM.warnBg, MM.warnText)
+        default: return (MM.accentSoft, MM.accentText)
         }
+    }
+
+    private func appRow(title: String, selected: Bool, bg: Color, fg: Color, letter: String,
+                        live: Bool, action: @escaping () -> Void) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        return Button(action: action) {
+            HStack(spacing: 10) {
+                Text(letter).font(.system(size: 13, weight: .semibold)).foregroundStyle(fg)
+                    .frame(width: 28, height: 28)
+                    .background(bg, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                Text(title).font(.system(size: 13.5, weight: selected ? .medium : .regular))
+                    .foregroundStyle(MM.text).lineLimit(1)
+                Spacer(minLength: 0)
+                if live { Circle().fill(MM.okDot).frame(width: 8, height: 8).accessibilityLabel("Şu an önde") }
+            }
+            .padding(8).frame(minHeight: 44)
+            .background(selected ? MM.accentSoft : Color.clear, in: shape)
+            .overlay { if selected { shape.strokeBorder(MM.accent, lineWidth: 2) } }
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var appColumn: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            MMSectionLabel("Uygulamalar").padding(.horizontal, 8).padding(.bottom, 8)
+            ScrollView {
+                VStack(spacing: 4) {
+                    appRow(title: "Tüm uygulamalar", selected: selection == nil, bg: MM.neuBg, fg: MM.text,
+                           letter: "*", live: false) { selection = nil }
+                    ForEach(apps) { app in
+                        let c = letterColors(app.name)
+                        appRow(title: app.name, selected: selection == app.id, bg: c.0, fg: c.1,
+                               letter: String(app.name.prefix(1)).uppercased(),
+                               live: front.bundleID == app.id) { selection = app.id }
+                    }
+                }
+            }
+            addMenu
+        }
+        .padding(.horizontal, 12).padding(.vertical, 20)
+        .frame(width: 230).frame(maxHeight: .infinity, alignment: .top)
+        .overlay(alignment: .trailing) { Rectangle().fill(MM.line).frame(width: 1) }
+    }
+
+    private var addMenu: some View {
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        return Menu {
+            ForEach(AppPicker.runningApps()) { app in
+                Button(app.name) { add(app) }
+            }
+            Divider()
+            Button("Diğer uygulama…") {
+                if let p = AppPicker.pickApp(), let id = p.bundleID { add(AppChoice(id: id, name: p.name)) }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "plus").font(.system(size: 13, weight: .semibold))
+                Text("Uygulama ekle").font(.system(size: 13.5))
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(MM.text)
+            .padding(8).frame(minHeight: 44)
+            .overlay(shape.strokeBorder(MM.line, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+            .contentShape(shape)
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden)
+        .padding(.top, 8)
+    }
+
+    // MARK: Ayrıntı
+
+    private var detail: some View {
+        let app = selectedApp
+        return VStack(alignment: .leading, spacing: 16) {
+            MMPageHeader(title: app?.name ?? "Tüm uygulamalar",
+                         subtitle: app.map { "\($0.name) öndeyken bu profil kendiliğinden devreye girer. Profili kaldırsan da atamalar kalır." }
+                            ?? "Genel atamalar, profili olmayan her uygulamada çalışır.") {
+                HStack(spacing: 10) {
+                    if app != nil && store.profiles.contains(where: { $0.bundleID == selection }) {
+                        MMSecondaryButton("Profili kaldır") { removing = true }
+                    }
+                    MMPrimaryButton(app != nil ? "Bu uygulama için hareket ekle" : "Hareket ekle", "plus") {
+                        adding = true
+                    }
+                }
+            }
+            if apps.isEmpty && app == nil {
+                MMBanner(kind: .info, title: "Henüz uygulamaya özel profil yok",
+                         message: "Bir uygulamada genel atamadan farklı davranmak için \"Uygulama ekle\" ile başla; o uygulamadaki atamalar genel atamaların önüne geçer.")
+            }
+            MMSectionLabel("Atamalar")
+            BindingListView(scope: app?.id)
+                .frame(maxHeight: .infinity)
+            if app != nil { testArea }
+        }
+        .padding(.horizontal, 28).padding(.vertical, 24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .confirmationDialog("Profil kaldırılsın mı?", isPresented: $removing) {
+            Button("Profili kaldır", role: .destructive) {
+                if let id = selection {
+                    store.removeProfile(bundleID: id)
+                    if !store.bindings.contains(where: { $0.appBundleID == id }) { selection = nil }
+                }
+            }
+            Button("Vazgeç", role: .cancel) {}
+        } message: {
+            Text("Yalnız uygulama listeden çıkar; o uygulamadaki atamalar silinmez.")
+        }
+    }
+
+    private var testArea: some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        return HStack(spacing: 20) {
+            Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+                .font(.system(size: 36, weight: .light)).foregroundStyle(MM.accentText)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Deneme alanı").font(.system(size: 14, weight: .semibold)).foregroundStyle(MM.accentText)
+                Text("Burada orta tuşla sürükle; gelen olay burada görünür.")
+                    .font(.system(size: 13)).foregroundStyle(MM.accentText)
+                Text(model.lastAction)
+                    .font(.system(size: 12, design: .monospaced)).foregroundStyle(MM.text)
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(MM.card, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(MM.accentLine, lineWidth: 1))
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(MM.accentSoft, in: shape)
+        .overlay(shape.strokeBorder(MM.accentLine, style: StrokeStyle(lineWidth: 2, dash: [6, 4])))
     }
 
     private func add(_ app: AppChoice) {
-        if !extra.contains(app) { extra.append(app) }
+        store.addProfile(ProfileApp(bundleID: app.id, name: app.name))
         selection = app.id
     }
 }

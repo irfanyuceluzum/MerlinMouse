@@ -58,7 +58,7 @@ final class InputTap {
             return pass
         }
         if event.getIntegerValueField(.eventSourceUserData) == Self.syntheticTag { return pass }
-        guard Settings.shared.enabled else { return pass }
+        guard Settings.shared.enabled, !AppModel.shared.isPaused else { return pass }
         for module in modules where module.handle(type, event) == .drop {
             return nil
         }

@@ -6,16 +6,47 @@ struct ScrollPage: View {
     @ObservedObject private var front = FrontApp.shared
 
     var body: some View {
-        Form {
-            Section {
-                Toggle("Orta tuşla sürüklerken kaydırmayı engelle", isOn: $s.blockScrollWhileDragging)
-                Toggle("3D programlarda ataleti kapat", isOn: $s.calm3DScroll)
+        VStack(alignment: .leading, spacing: 20) {
+            MMPageHeader(title: "Kaydırma",
+                         subtitle: "Orta tuşla çalışırken ve 3D programlarda Magic Mouse kaydırmasını denetle.")
+            MMCard {
+                VStack(spacing: 0) {
+                    cardTitle("Kaydırma ve yakınlaştırma")
+                    MMSwitchRow(title: "Sürüklerken kaydırmayı engelle",
+                                subtitle: "Model döndürürken istemeden yakınlaşmaz",
+                                isOn: $s.blockScrollWhileDragging)
+                    MMDivider()
+                    MMSwitchRow(title: "Ataleti kapat, adım adım yakınlaştır",
+                                subtitle: "3D programlarda Magic Mouse kaydırması tekerlek gibi davranır",
+                                isOn: $s.calm3DScroll)
+                }
             }
-            Section("Öndeki uygulama") {
-                LabeledContent("Uygulama", value: front.name.isEmpty ? "—" : front.name)
-                LabeledContent("3D program mu?", value: front.is3D ? "Evet" : "Hayır")
+            MMCard {
+                VStack(spacing: 0) {
+                    cardTitle("Öndeki uygulama")
+                    HStack(spacing: 8) {
+                        Text(front.name.isEmpty ? "—" : front.name)
+                            .font(.system(size: 13.5, weight: .medium)).foregroundStyle(MM.text)
+                        if front.is3D {
+                            Text("3D").font(.system(size: 11, weight: .bold)).foregroundStyle(MM.accentText)
+                                .padding(.horizontal, 7).padding(.vertical, 1)
+                                .background(MM.accentSoft, in: Capsule())
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20).padding(.vertical, 14)
+                }
             }
+            Spacer(minLength: 0)
         }
-        .formStyle(.grouped)
+        .padding(.horizontal, 32).padding(.vertical, 28)
+    }
+
+    private func cardTitle(_ t: String) -> some View {
+        Text(t).font(.system(size: 12, weight: .semibold)).foregroundStyle(MM.text)
+            .padding(.horizontal, 20).padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(MM.card2)
+            .overlay(alignment: .bottom) { Rectangle().fill(MM.line).frame(height: 1) }
     }
 }

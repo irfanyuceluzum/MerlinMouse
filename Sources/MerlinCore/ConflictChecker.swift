@@ -1,13 +1,13 @@
 import Foundation
 
 public enum ConflictLevel: String, Hashable, CaseIterable {
-    case reserved, unsupported, duplicate, macOS, btt, caution
+    case reserved, unsupported, duplicate, replacesDisabled, macOS, btt, caution, shadows
 
     /// Kaydetmeyi engelleyen düzeyler.
     public var blocksSave: Bool {
         switch self {
         case .reserved, .unsupported, .duplicate: return true
-        case .macOS, .btt, .caution: return false
+        case .replacesDisabled, .macOS, .btt, .caution, .shadows: return false
         }
     }
 }
@@ -16,11 +16,14 @@ public struct Conflict: Equatable {
     public var level: ConflictLevel
     public var title: String
     public var detail: String
+    /// Çakışan atamanın eylem başlığı (yalnız `replacesDisabled`).
+    public var subject: String?
 
-    public init(level: ConflictLevel, title: String, detail: String) {
+    public init(level: ConflictLevel, title: String, detail: String, subject: String? = nil) {
         self.level = level
         self.title = title
         self.detail = detail
+        self.subject = subject
     }
 }
 
@@ -31,10 +34,15 @@ public struct ConflictEnvironment: Equatable {
     public var twoFingerDoubleTap: Int
     public var twoFingerHorizSwipe: Int
     public var bttRunning: Bool
+    public var oneFingerHorizSwipePages: Int
+    public var controlScrollZoom: Bool
 
     public init(mouseButtonMode: String? = nil, oneFingerDoubleTap: Int = 0,
                 twoFingerDoubleTap: Int = 0, twoFingerHorizSwipe: Int = 0,
-                bttRunning: Bool = false) {
+                bttRunning: Bool = false, oneFingerHorizSwipePages: Int = 0,
+                controlScrollZoom: Bool = false) {
+        self.oneFingerHorizSwipePages = oneFingerHorizSwipePages
+        self.controlScrollZoom = controlScrollZoom
         self.mouseButtonMode = mouseButtonMode
         self.oneFingerDoubleTap = oneFingerDoubleTap
         self.twoFingerDoubleTap = twoFingerDoubleTap
@@ -75,11 +83,26 @@ public enum ConflictChecker {
         }
 
         let dup = among.contains {
-            $0.id != binding.id && $0.appBundleID == binding.appBundleID && $0.trigger.normalized == t
+            $0.id != binding.id && $0.enabled && $0.appBundleID == binding.appBundleID && $0.trigger.normalized == t
         }
         if dup {
             out.append(Conflict(level: .duplicate, title: "Aynı tetik zaten atanmış",
                                 detail: "Bu kapsamda aynı tetiğe başka bir atama var."))
+        }
+
+        // Kapalı rakip varsa (açık rakip olsa da) kayıtta silineceği için her zaman bildirilir.
+        for off in among where off.id != binding.id && !off.enabled && off.appBundleID == binding.appBundleID && off.trigger.normalized == t {
+            out.append(Conflict(level: .replacesDisabled, title: "Kapalı bir ataması var",
+                                detail: "Bu hareket kapalı '\(off.action.title)' atamasına bağlı. Kaydedersen yeni atama onun yerine geçer.",
+                                subject: off.action.title))
+        }
+
+        if binding.enabled, let app = binding.appBundleID,
+           let g = among.first(where: {
+               $0.id != binding.id && $0.enabled && $0.appBundleID == nil && $0.trigger.normalized == t
+           }) {
+            out.append(Conflict(level: .shadows, title: "Genel atamanın yerine geçer",
+                                detail: "\(binding.appName ?? app)'de '\(g.action.title)' yerine bu çalışır."))
         }
 
         if t.kind == .press, t.fingers == 1, t.zone == .right, env.mouseButtonMode == "TwoButton" {

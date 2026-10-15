@@ -27,11 +27,9 @@ public enum DefaultBindings {
         return [
             make(Trigger(kind: .press, fingers: 1, zone: .center), legacy.zoneClick),
             make(Trigger(kind: .press, fingers: 2), legacy.twoFingerClick),
-            // Bugün "3 ve üzeri" olduğundan 3 ve 4 parmak.
+            // "3 ve üzeri": 4 parmak eşleştirmede 3 parmağa geri düşer.
             make(Trigger(kind: .press, fingers: 3), legacy.threeFingerClick),
-            make(Trigger(kind: .press, fingers: 4), legacy.threeFingerClick),
             make(Trigger(kind: .tap, fingers: 3), legacy.threeFingerTap),
-            make(Trigger(kind: .tap, fingers: 4), legacy.threeFingerTap),
             make(Trigger(kind: .press, fingers: 0, modifier: .fn), legacy.fnDrag),
         ]
     }

@@ -1,7 +1,8 @@
 import SwiftUI
 import MerlinCore
 
-/// Menü çubuğundan açılan panel.
+/// Menü çubuğundan açılan panel: durum, hızlı anahtarlar, görünüm ve kısayollar.
+/// Harita, tüm atamalar ve gelişmiş ayarlar ana pencerededir.
 struct PanelView: View {
     @ObservedObject private var model = AppModel.shared
     @ObservedObject private var s = Settings.shared
@@ -10,211 +11,240 @@ struct PanelView: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 0) {
             header
-            if !model.trusted { permissionCard }
-            liveSection
-            section("Orta tuş") {
-                ForEach(bindingStore.set.bindings, id: \.id) { b in
-                    Toggle(isOn: Binding(get: { b.enabled },
-                                         set: { bindingStore.setEnabled(id: b.id, $0) })) {
-                        Text("\(b.trigger.title) → \(b.action.title)").font(.callout)
-                    }
-                    .toggleStyle(.switch).controlSize(.mini)
+            VStack(alignment: .leading, spacing: 10) {
+                if !model.trusted {
+                    MMBanner(kind: .warning, title: "Erişilebilirlik izni gerekli",
+                             actionTitle: "Ayarları aç") { model.openAccessibilitySettings() }
                 }
-                HStack {
-                    Text("Orta bölge genişliği").font(.caption).foregroundStyle(.secondary)
-                    Slider(value: $s.zoneWidth, in: 0.15...0.45).controlSize(.small)
-                    Text("%\(Int(s.zoneWidth * 100))").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                if model.isPaused, let until = s.pausedUntil {
+                    MMBanner(kind: .info, title: "\(Self.timeText(until))'e kadar duraklatıldı",
+                             actionTitle: "Devam et") { model.resume() }
                 }
             }
-            section("Kaydırma") {
-                toggle("Orta tuşla sürüklerken kaydırmayı engelle", $s.blockScrollWhileDragging)
-                toggle("3D programlarda ataleti kapat", $s.calm3DScroll)
-            }
-            ForEach(model.warnings) { warningCard($0) }
-            appearancePicker
+            .padding(.horizontal, 16).padding(.top, model.trusted && !model.isPaused ? 0 : 12)
+            profileSection
+            quickToggles
+            appearanceSection
+            warningLinks
             footer
         }
-        .padding(16)
-        .frame(width: 344)
-        .tint(.merlinAccent)
+        .frame(width: 380)
+        .background(MM.win)
+        .tint(MM.accent)
     }
 
-    /// Orta bölge haritada yalnız etkin bir "orta bölgeye bas" ataması varsa görünür.
-    private var zoneVisible: Bool {
-        bindingStore.set.bindings.contains {
-            $0.enabled && $0.trigger.normalized == Trigger(kind: .press, fingers: 1, zone: .center)
-        }
-    }
-
-    // MARK: Bölümler
+    // MARK: Başlık
 
     private var header: some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Color.merlinAccent)
-                .frame(width: 36, height: 36)
-                .overlay(Image(systemName: "magicmouse").font(.system(size: 17, weight: .medium)).foregroundStyle(.white))
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Merlin Mouse").font(.headline)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(MM.accent)
+                .frame(width: 40, height: 40)
+                .overlay(Image(systemName: "magicmouse").font(.system(size: 20, weight: .medium)).foregroundStyle(MM.accentInk))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Merlin Mouse").font(.system(size: 14, weight: .semibold)).foregroundStyle(MM.text)
                 Text(model.miceCount > 0 ? "Magic Mouse bağlı" : "Magic Mouse bulunamadı")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.system(size: 12)).foregroundStyle(MM.text2)
             }
             Spacer()
-            Toggle("Etkin", isOn: $s.enabled).toggleStyle(.switch).labelsHidden()
+            MMSwitch(isOn: $s.enabled, label: "Merlin Mouse")
         }
+        .padding(16)
+        .overlay(alignment: .bottom) { MMDivider() }
     }
 
-    private var permissionCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Erişilebilirlik izni gerekli", systemImage: "lock.shield")
-                .font(.callout.weight(.semibold)).foregroundStyle(Color.merlinWarn)
-            Text("Tıklamaları orta tuşa çevirebilmek için Sistem Ayarları › Gizlilik ve Güvenlik › Erişilebilirlik'te Merlin Mouse'u aç.")
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Button("Ayarları aç") { model.openAccessibilitySettings() }.controlSize(.small)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    // MARK: Etkin profil
+
+    private var hasScopedSetup: Bool {
+        guard let id = front.bundleID else { return false }
+        return bindingStore.profiles.contains { $0.bundleID == id }
+            || bindingStore.bindings.contains { $0.appBundleID == id }
     }
 
-    private var liveSection: some View {
-        HStack(alignment: .top, spacing: 14) {
-            MouseMap(touches: model.liveTouches, zoneWidth: zoneVisible ? s.zoneWidth : 0, flipped: s.flipY)
-            VStack(alignment: .leading, spacing: 6) {
-                Text("SON EYLEM").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
-                Text(model.lastAction).font(.callout.weight(.medium)).fixedSize(horizontal: false, vertical: true)
-                Spacer().frame(height: 4)
-                Text("ÖNDEKİ UYGULAMA").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
-                HStack(spacing: 6) {
-                    Text(front.name.isEmpty ? "—" : front.name).font(.callout)
+    private var profileSection: some View {
+        let appName = front.name.isEmpty ? "—" : front.name
+        return VStack(alignment: .leading, spacing: 10) {
+            MMSectionLabel("Etkin profil")
+            MMCard {
+                HStack(spacing: 10) {
+                    Text(String(appName.prefix(1)).uppercased())
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(MM.bttText)
+                        .frame(width: 28, height: 28)
+                        .background(MM.bttBg, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(appName).font(.system(size: 14, weight: .medium)).foregroundStyle(MM.text).lineLimit(1)
+                        Text(hasScopedSetup ? "Bu uygulamanın profili etkin" : "Genel atamalar · öndeki uygulamadan algılandı")
+                            .font(.system(size: 12)).foregroundStyle(MM.text2).lineLimit(1)
+                    }
+                    Spacer(minLength: 6)
                     if front.is3D {
-                        Text("3D").font(.caption2.weight(.bold))
-                            .padding(.horizontal, 6).padding(.vertical, 1)
-                            .background(Color.merlinAccent.opacity(0.15), in: Capsule())
-                            .foregroundStyle(Color.merlinAccent)
+                        Text("3D").font(.system(size: 11, weight: .bold))
+                            .padding(.horizontal, 7).padding(.vertical, 2)
+                            .background(MM.accentSoft, in: Capsule())
+                            .foregroundStyle(MM.accentText)
                     }
                 }
-                Spacer().frame(height: 4)
-                Text("Parmakların haritada canlı görünür. Ön taraf yukarıda olmalı.")
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 12).padding(.vertical, 10)
             }
+            HStack(spacing: 8) {
+                Circle().fill(MM.accent).frame(width: 8, height: 8)
+                Text("Son eylem: ").font(.system(size: 13)).foregroundStyle(MM.text)
+                    + Text(model.lastAction).font(.system(size: 13, weight: .medium)).foregroundStyle(MM.text)
+            }
+            .lineLimit(1)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        .overlay(alignment: .bottom) { MMDivider() }
+    }
+
+    // MARK: Hızlı anahtarlar
+
+    private var globalCenterPress: GestureBinding? {
+        bindingStore.bindings.first {
+            $0.appBundleID == nil && $0.trigger.normalized == Trigger(kind: .press, fingers: 1, zone: .center)
         }
     }
 
-    private var appearancePicker: some View {
-        HStack {
-            Text("Görünüm").font(.callout)
-            Spacer()
-            Picker("Görünüm", selection: $s.appearance) {
-                Text("Sistem").tag("system")
-                Text("Gündüz").tag("light")
-                Text("Gece").tag("dark")
-            }
-            .pickerStyle(.segmented).labelsHidden().frame(width: 200)
+    private var globalThreeFingerPress: GestureBinding? {
+        bindingStore.bindings.first {
+            $0.appBundleID == nil && $0.trigger.kind == .press && $0.trigger.fingers == 3 && $0.trigger.modifier == .none
         }
     }
+
+    private var quickToggles: some View {
+        VStack(spacing: 0) {
+            if let b = globalCenterPress { bindingRow("Orta bölge sürükleme", b) }
+            if let b = globalThreeFingerPress { bindingRow("Üç parmakla orta tıklama", b) }
+            toggleRow("3D yakınlaştırma düzeltmesi", $s.calm3DScroll)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 10)
+        .overlay(alignment: .bottom) { MMDivider() }
+    }
+
+    private func bindingRow(_ title: String, _ b: GestureBinding) -> some View {
+        toggleRow(title, Binding(get: { b.enabled }, set: { bindingStore.setEnabled(id: b.id, $0) }))
+    }
+
+    private func toggleRow(_ title: String, _ value: Binding<Bool>) -> some View {
+        HStack(spacing: 10) {
+            Text(title).font(.system(size: 14)).foregroundStyle(MM.text)
+            Spacer(minLength: 8)
+            MMSwitch(isOn: value, label: title)
+        }
+        .padding(8)
+        .frame(minHeight: 44)
+    }
+
+    // MARK: Görünüm
+
+    private var appearanceSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            MMSectionLabel("Görünüm")
+            HStack(spacing: 2) {
+                ForEach([("system", "Sistem"), ("light", "Gündüz"), ("dark", "Gece")], id: \.0) { id, label in
+                    let on = s.appearance == id
+                    Button { s.appearance = id } label: {
+                        Text(label)
+                            .font(.system(size: 12.5, weight: on ? .semibold : .regular))
+                            .foregroundStyle(on ? MM.text : MM.text2)
+                            .frame(maxWidth: .infinity).frame(height: 28)
+                            .background(on ? MM.card : Color.clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                            .shadow(color: on ? .black.opacity(0.18) : .clear, radius: 1, y: 1)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
+            .padding(3)
+            .background(MM.neuBg, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .padding(.horizontal, 16).padding(.top, 12)
+    }
+
+    // MARK: Uyarı bağlantıları
+
+    private var conflictCount: Int {
+        SystemGestureCatalog.conflictCount(env: model.conflictEnvironment())
+    }
+
+    @ViewBuilder private var warningLinks: some View {
+        let count = conflictCount
+        if count > 0 {
+            linkRow("\(count) sistem hareketi açık, bunlara atama yapma", icon: "exclamationmark.triangle",
+                    bg: MM.warnBg, fg: MM.warnText) { openPage(.system) }
+        }
+        if let btt = model.warnings.first(where: { $0.source == .btt }) {
+            linkRow(btt.title, icon: "arrow.left.arrow.right", bg: MM.bttBg, fg: MM.bttText) { openPage(.gestures) }
+        }
+    }
+
+    private func linkRow(_ text: String, icon: String, bg: Color, fg: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: icon).font(.system(size: 14, weight: .semibold))
+                Text(text).font(.system(size: 13)).multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 6)
+                Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundStyle(fg)
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(bg, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16).padding(.top, 12)
+    }
+
+    // MARK: Alt menü
 
     private var footer: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Divider()
-            DisclosureGroup("Gelişmiş") {
-                VStack(alignment: .leading, spacing: 6) {
-                    toggle("Ön / arka yönünü ters çevir", $s.flipY)
-                    Text("Aygıtlar: \(model.deviceInfo.isEmpty ? "—" : model.deviceInfo)")
-                        .font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
-                    Button("Fareyi yeniden tara") { model.startTouches() }.controlSize(.small)
-                }
-                .padding(.top, 6)
-            }
-            .font(.callout)
-            HStack {
-                Button("Ayarlar…") {
-                    openWindow(id: "main")
-                    NSApp.activate(ignoringOtherApps: true)
-                }
+        VStack(spacing: 0) {
+            menuRow("Ayarlar…", shortcut: "⌘ ,") { openPage(nil) }
                 .keyboardShortcut(",", modifiers: .command)
-                .controlSize(.small)
-                Spacer()
-                Button("Merlin Mouse'tan çık") { NSApp.terminate(nil) }.controlSize(.small)
+            if model.isPaused {
+                menuRow("Devam et", shortcut: nil) { model.resume() }
+            } else {
+                menuRow("1 saat duraklat", shortcut: nil) { model.pause(for: 3600) }
             }
+            menuRow("Merlin Mouse'tan çık", shortcut: "⌘ Q") { NSApp.terminate(nil) }
         }
+        .padding(8)
+        .overlay(alignment: .top) { MMDivider() }
+        .padding(.top, 12)
+    }
+
+    private func menuRow(_ title: String, shortcut: String?, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title).font(.system(size: 14)).foregroundStyle(MM.text)
+                Spacer()
+                if let shortcut {
+                    Text(shortcut).font(.system(size: 13, design: .monospaced)).foregroundStyle(MM.text2)
+                }
+            }
+            .padding(.horizontal, 8).padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: Yardımcılar
 
-    private func section<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title.uppercased()).font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 8) { content() }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        }
+    private func openPage(_ page: MainWindow.Page?) {
+        model.openMainWindow(page: page?.rawValue)
+        openWindow(id: "main")
+        NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func toggle(_ title: String, _ value: Binding<Bool>) -> some View {
-        Toggle(isOn: value) { Text(title).font(.callout) }
-            .toggleStyle(.switch).controlSize(.mini)
-    }
-
-    private func warningCard(_ w: Warning) -> some View {
-        let color: Color = w.source == .btt ? .merlinBTT : .merlinWarn
-        return VStack(alignment: .leading, spacing: 4) {
-            Label(w.title, systemImage: w.source == .btt ? "arrow.left.arrow.right" : "exclamationmark.triangle")
-                .font(.callout.weight(.semibold)).foregroundStyle(color)
-            Text(w.detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-}
-
-/// Magic Mouse üst görünümü: orta bölge ve canlı parmak konumları.
-struct MouseMap: View {
-    var touches: [Touch]
-    var zoneWidth: Double
-    var flipped: Bool
-    /// Varsayılan boyut panelin bugünkü boyutudur.
-    var size: CGSize = CGSize(width: 78, height: 156)
-
-    var body: some View {
-        Canvas { context, size in
-            let rect = CGRect(origin: .zero, size: size).insetBy(dx: 1.5, dy: 1.5)
-            let shape = Path(roundedRect: rect,
-                             cornerSize: CGSize(width: rect.width * 0.46, height: rect.width * 0.42),
-                             style: .continuous)
-            // Gerçek fare gibi her iki modda da beyaz yüzey
-            context.fill(shape, with: .linearGradient(
-                Gradient(colors: [Color(white: 1.0), Color(white: 0.90)]),
-                startPoint: CGPoint(x: rect.maxX, y: rect.minY), endPoint: CGPoint(x: rect.minX, y: rect.maxY)))
-            context.stroke(shape, with: .color(Color(white: 0.78)), lineWidth: 1.5)
-
-            var inner = context
-            inner.clip(to: shape)
-            let frontHeight = size.height * CGFloat(1 - TouchMonitor.frontLimit)
-            if zoneWidth > 0 {
-                let w = size.width * zoneWidth
-                inner.fill(Path(CGRect(x: (size.width - w) / 2, y: 0, width: w, height: frontHeight)),
-                           with: .color(Color.merlinAccent.opacity(0.18)))
-            }
-            var dash = Path()
-            dash.move(to: CGPoint(x: 0, y: frontHeight))
-            dash.addLine(to: CGPoint(x: size.width, y: frontHeight))
-            inner.stroke(dash, with: .color(Color(white: 0.6)), style: StrokeStyle(lineWidth: 1, dash: [2, 4]))
-
-            for t in touches {
-                let x = CGFloat(t.x) * size.width
-                let y = (1 - CGFloat(t.front(flipped: flipped))) * size.height
-                let r: CGFloat = 7
-                inner.fill(Path(ellipseIn: CGRect(x: x - r, y: y - r, width: 2 * r, height: 2 * r)),
-                           with: .color(Color.merlinAccent.opacity(0.85)))
-            }
-        }
-        .frame(width: size.width, height: size.height)
-        .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
-        .accessibilityLabel("Magic Mouse dokunma haritası")
+    private static func timeText(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f.string(from: date)
     }
 }

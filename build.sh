@@ -3,6 +3,8 @@
 # Bir "Apple Development" sertifikası varsa onunla imzalar: Erişilebilirlik izni
 # yeniden derlemelerde korunur. Yoksa yerel (ad-hoc) imza kullanılır ve her
 # derlemeden sonra izni kapatıp açmak gerekir. Elle seçmek için: SIGN_ID="..." ./build.sh
+# İmzadan sonra uygulama /Applications/MerlinMouse.app konumuna kurulur;
+# yalnız build/ altına üretmek için: INSTALL=0 ./build.sh
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -25,3 +27,9 @@ else
 fi
 
 echo "Hazır: $(pwd)/$APP"
+
+if [ "${INSTALL:-1}" != "0" ]; then
+    rm -rf /Applications/MerlinMouse.app
+    ditto "$APP" /Applications/MerlinMouse.app
+    echo "Kuruldu: /Applications/MerlinMouse.app"
+fi

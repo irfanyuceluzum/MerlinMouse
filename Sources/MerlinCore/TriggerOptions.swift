@@ -48,4 +48,50 @@ public enum TriggerOptions {
         }
         return t.normalized
     }
+
+    /// Bölge seçilemiyorsa nedeni; açıklama gerekmiyorsa nil.
+    public static func unavailableZoneReason(kind: GestureKind, fingers: Int, modifier: PressModifier) -> String? {
+        guard modifier == .none else { return nil }
+        switch kind {
+        case .press where fingers == 1:
+            return "Sol bölgeye basmak normal sol tıklamadır; değiştirilemez."
+        case .tap where fingers == 1:
+            return "Tek parmakla dokunma fareyi tutarken kazara tetiklenir."
+        case .swipe where fingers < 3:
+            return "Bir ve iki parmakla kaydırma macOS kaydırmasıdır."
+        default:
+            return nil
+        }
+    }
+
+    /// Yeni atama için önerilen tetik: önce çakışmasız, sonra en az engellemeyen aday.
+    public static func firstFreeTrigger(among: [GestureBinding], scope: String?,
+                                        env: ConflictEnvironment) -> Trigger {
+        let candidates: [Trigger] = [
+            Trigger(kind: .press, fingers: 1, zone: .right),
+            Trigger(kind: .press, fingers: 2),
+            Trigger(kind: .press, fingers: 3),
+            Trigger(kind: .doubleTap, fingers: 2, zone: .any),
+            Trigger(kind: .tap, fingers: 3),
+            Trigger(kind: .swipe, fingers: 3, direction: .up),
+            Trigger(kind: .swipe, fingers: 3, direction: .down),
+            Trigger(kind: .swipe, fingers: 3, direction: .left),
+            Trigger(kind: .swipe, fingers: 3, direction: .right),
+            Trigger(kind: .press, modifier: .option),
+        ].map { $0.normalized }
+        var firstNonBlocking: Trigger?
+        var firstReplacing: Trigger?
+        for t in candidates {
+            let probe = GestureBinding(trigger: t, action: .middleClick, appBundleID: scope)
+            let conflicts = ConflictChecker.check(probe, among: among, env: env)
+            if conflicts.contains(where: { $0.level.blocksSave }) { continue }
+            if conflicts.isEmpty { return t }
+            if conflicts.contains(where: { $0.level == .replacesDisabled }) {
+                if firstReplacing == nil { firstReplacing = t }
+                continue
+            }
+            if firstNonBlocking == nil { firstNonBlocking = t }
+        }
+        return firstNonBlocking ?? firstReplacing ?? Trigger(kind: .press, fingers: 3)
+    }
 }

@@ -6,49 +6,217 @@ import MerlinCore
 final class SystemGestureState: ObservableObject {
     static let shared = SystemGestureState()
     @Published private(set) var rows: [SystemGestureRow] = []
-    var onCount: Int { rows.filter { $0.isConfigurable && $0.isOn }.count }
+    private var env = ConflictEnvironment()
+    var onCount: Int { SystemGestureCatalog.conflictCount(env: env) }
 
     func refresh() {
-        rows = SystemGestureCatalog.rows(env: AppModel.shared.conflictEnvironment())
+        env = AppModel.shared.conflictEnvironment()
+        rows = SystemGestureCatalog.rows(env: env)
     }
 }
 
 /// macOS'un fare hareketleri ve Merlin Mouse ile ilişkileri.
 struct SystemPage: View {
     @ObservedObject private var state = SystemGestureState.shared
+    @ObservedObject private var model = AppModel.shared
+
+    private func isKeyboard(_ r: SystemGestureRow) -> Bool {
+        r.gesture.hasPrefix("⌃") || r.gesture.hasPrefix("⌘") || r.gesture == "BetterTouchTool"
+    }
+
+    private var osVersion: String {
+        let v = ProcessInfo.processInfo.operatingSystemVersion
+        return "\(v.majorVersion).\(v.minorVersion).\(v.patchVersion)"
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("macOS'un Magic Mouse için kullandığı hareketler. Açık olanlara atama yaparsan çakışma uyarısı çıkar.")
-                .font(.callout).foregroundStyle(.secondary)
-            Table(state.rows, columns: {
-                TableColumn("Hareket", value: \.gesture)
-                TableColumn("macOS görevi", value: \.task)
-                TableColumn("Durum") { row in
-                    Text(row.isOn ? "Açık" : "Kapalı")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 8).padding(.vertical, 2)
-                        .background((row.isOn ? Color.merlinAccent : Color.secondary).opacity(0.15), in: Capsule())
-                        .foregroundStyle(row.isOn ? Color.merlinAccent : Color.secondary)
-                }
-                .width(70)
-                TableColumn("Not", value: \.note)
-            })
-            HStack {
-                Button("Sistem Ayarları › Fare") {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.Mouse-Settings.extension") {
-                        NSWorkspace.shared.open(url)
+        VStack(alignment: .leading, spacing: 16) {
+            MMPageHeader(title: "macOS sistem hareketleri",
+                         subtitle: "Apple'ın Magic Mouse için ayırdığı hareketler. Açık olanlara atama yapılırsa Merlin Mouse uyarır.") {
+                HStack(spacing: 8) {
+                    MMSecondaryButton("Yeniden tara", "arrow.clockwise") { state.refresh() }
+                    MMPrimaryButton("Sistem Ayarları › Fare") {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.Mouse-Settings.extension") {
+                            NSWorkspace.shared.open(url)
+                        }
                     }
                 }
-                Button("Yenile") { state.refresh() }
-                Spacer()
+            }
+            statusStrip
+            table
+        }
+        .padding(.horizontal, 32).padding(.vertical, 28)
+        .onAppear { state.refresh() }
+        .onReceive(Timer.publish(every: 5, on: .main, in: .common).autoconnect()) { _ in state.refresh() }
+    }
+
+    private var statusStrip: some View {
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        return HStack(spacing: 10) {
+            Circle().fill(MM.okDot).frame(width: 8, height: 8)
+            Text("Bu Mac'ten okundu · macOS \(osVersion) · Magic Mouse \(model.miceCount > 0 ? "bağlı" : "bağlı değil") · Ayarlar değişince liste kendiliğinden güncellenir")
+                .font(.system(size: 13)).foregroundStyle(MM.text2)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(MM.card, in: shape)
+        .overlay(shape.strokeBorder(MM.line, lineWidth: 1))
+    }
+
+    private var table: some View {
+        MMCard {
+            VStack(spacing: 0) {
+                gridRow {
+                    MMSectionLabel("Hareket"); MMSectionLabel("macOS görevi")
+                    MMSectionLabel("Bu Mac'te"); MMSectionLabel("Merlin Mouse için")
+                }
+                .padding(.vertical, 10)
+                .overlay(alignment: .bottom) { Rectangle().fill(MM.line).frame(height: 1) }
+                ScrollView {
+                    VStack(spacing: 0) {
+                        group("Fare ayarları", state.rows.filter { !isKeyboard($0) })
+                        group("Klavye + fare", state.rows.filter { isKeyboard($0) })
+                    }
+                }
+                Spacer(minLength: 0)
+                freeStrip
             }
         }
-        .padding(20)
-        .onAppear { state.refresh() }
+    }
+
+    /// 1.6 / 1.6 / 1 / 1.7 oranlı dört sütunlu satır.
+    private func gridRow<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        FourColumnLayout { content() }
+            .padding(.horizontal, 20)
+    }
+
+    private func group(_ title: String, _ rows: [SystemGestureRow]) -> some View {
+        VStack(spacing: 0) {
+            Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(MM.text)
+                .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(MM.card2)
+            ForEach(rows) { r in
+                gridRow {
+                    Text(r.gesture)
+                        .font(isKeyboard(r) && r.gesture != "BetterTouchTool"
+                              ? .system(size: 13, weight: .medium, design: .monospaced)
+                              : .system(size: 13.5, weight: .medium))
+                        .foregroundStyle(MM.text)
+                    Text(r.task).font(.system(size: 13.5)).foregroundStyle(MM.text)
+                    chip(r.status)
+                    Text(r.note).font(.system(size: 13)).foregroundStyle(noteColor(r))
+                }
+                .padding(.vertical, 9)
+                .overlay(alignment: .bottom) { Rectangle().fill(MM.line2).frame(height: 1) }
+            }
+        }
+    }
+
+    private func noteColor(_ r: SystemGestureRow) -> Color {
+        switch r.status {
+        case .on, .always: return r.note.contains("engellen") ? MM.accentText : MM.warnText
+        case .appLevel: return MM.bttText
+        case .off: return MM.text2
+        }
+    }
+
+    private func chip(_ status: SystemGestureStatus) -> some View {
+        let spec: (String, Color, Color)
+        switch status {
+        case .on: spec = ("Açık", MM.warnBg, MM.warnText)
+        case .off: spec = ("Kapalı", MM.neuBg, MM.neuText)
+        case .always: spec = ("Her zaman", MM.warnBg, MM.warnText)
+        case .appLevel: spec = ("Uygulama içi", MM.bttBg, MM.bttText)
+        }
+        return Text(spec.0).font(.system(size: 12, weight: .semibold)).foregroundStyle(spec.2)
+            .padding(.horizontal, 9).padding(.vertical, 3)
+            .background(spec.1, in: Capsule())
+    }
+
+    private var freeStrip: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("macOS'un Magic Mouse'ta kullanmadığı, serbest hareketler")
+                .font(.system(size: 12, weight: .semibold)).foregroundStyle(MM.accentText)
+            FlowLayout(spacing: 8) {
+                ForEach(SystemGestureCatalog.freeGestures, id: \.self) { g in
+                    Text(g).font(.system(size: 13)).foregroundStyle(MM.text)
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(MM.card, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(MM.accentLine, lineWidth: 1))
+                }
+            }
+        }
+        .padding(.horizontal, 20).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(MM.accentSoft)
+        .overlay(alignment: .top) { Rectangle().fill(MM.line).frame(height: 1) }
     }
 }
 
 extension SystemGestureRow: Identifiable {
     public var id: String { gesture }
+}
+
+/// 1.6 / 1.6 / 1 / 1.7 oranlı dört sütun, 12 pt boşluk, dikeyde ortalı.
+struct FourColumnLayout: Layout {
+    private let weights: [CGFloat] = [1.6, 1.6, 1, 1.7]
+
+    private func widths(_ total: CGFloat) -> [CGFloat] {
+        let avail = max(0, total - 12 * 3)
+        let sum = weights.reduce(0, +)
+        return weights.map { avail * $0 / sum }
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let total = proposal.width ?? 600
+        let w = widths(total)
+        var h: CGFloat = 0
+        for (i, v) in subviews.enumerated() where i < 4 {
+            h = max(h, v.sizeThatFits(ProposedViewSize(width: w[i], height: nil)).height)
+        }
+        return CGSize(width: total, height: h)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let w = widths(bounds.width)
+        var x = bounds.minX
+        for (i, v) in subviews.enumerated() where i < 4 {
+            let size = v.sizeThatFits(ProposedViewSize(width: w[i], height: nil))
+            v.place(at: CGPoint(x: x, y: bounds.midY - size.height / 2), anchor: .topLeading,
+                    proposal: ProposedViewSize(width: w[i], height: nil))
+            x += w[i] + 12
+        }
+    }
+}
+
+/// Satırlara sarılan basit akış düzeni.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrange(width: proposal.width ?? 600, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let r = arrange(width: bounds.width, subviews: subviews)
+        for (i, f) in r.frames.enumerated() {
+            subviews[i].place(at: CGPoint(x: bounds.minX + f.minX, y: bounds.minY + f.minY),
+                              anchor: .topLeading, proposal: ProposedViewSize(f.size))
+        }
+    }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> (frames: [CGRect], size: CGSize) {
+        var frames: [CGRect] = []
+        var x: CGFloat = 0, y: CGFloat = 0, rowH: CGFloat = 0, maxW: CGFloat = 0
+        for v in subviews {
+            let s = v.sizeThatFits(.unspecified)
+            if x > 0, x + s.width > width { x = 0; y += rowH + spacing; rowH = 0 }
+            frames.append(CGRect(origin: CGPoint(x: x, y: y), size: s))
+            x += s.width + spacing
+            rowH = max(rowH, s.height)
+            maxW = max(maxW, x - spacing)
+        }
+        return (frames, CGSize(width: maxW, height: y + rowH))
+    }
 }

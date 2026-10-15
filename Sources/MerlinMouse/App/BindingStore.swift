@@ -8,6 +8,7 @@ final class BindingStore: ObservableObject {
 
     @Published private(set) var set: BindingSet
     private(set) var index: BindingIndex
+    @Published private(set) var recoveryNotice: String?
     private let file: BindingFileStore
 
     var bindings: [GestureBinding] { self.set.bindings }
@@ -25,27 +26,53 @@ final class BindingStore: ObservableObject {
                             fnDrag: s.fnDrag)
             },
             log: { Log.write($0) })
-        let loaded = file.load()
+        var loaded = file.load()
+        // Eski sürümden kalan gereksiz 4 parmak atamalarını bir kez temizle.
+        let collapsed = BindingMigrations.collapseRedundantFourFinger(loaded.bindings)
+        if collapsed.count != loaded.bindings.count {
+            let removed = loaded.bindings.count - collapsed.count
+            loaded.bindings = collapsed
+            file.save(loaded)
+            Log.write("Gereksiz 4 parmak atamaları kaldırıldı: \(removed)")
+        }
         set = loaded
         index = BindingIndex(bindings: loaded.bindings)
+        if let name = file.lastRecoveredBackupName {
+            recoveryNotice = "Atama dosyası okunamadı; yedeği \(name) olarak saklandı ve varsayılan atamalar yüklendi."
+        }
     }
 
     func setEnabled(id: UUID, _ enabled: Bool) {
-        guard let i = set.bindings.firstIndex(where: { $0.id == id }) else { return }
+        guard set.bindings.contains(where: { $0.id == id }) else { return }
         var next = set
-        next.bindings[i].enabled = enabled
+        next.bindings = BindingSetOps.setEnabled(id, enabled, in: next.bindings)
         apply(next)
     }
 
     func upsert(_ binding: GestureBinding) {
         var next = set
-        if let i = next.bindings.firstIndex(where: { $0.id == binding.id }) {
-            next.bindings[i] = binding
-        } else {
-            next.bindings.append(binding)
-        }
+        next.bindings = BindingSetOps.upsert(binding, in: next.bindings)
         apply(next)
     }
+
+    var profiles: [ProfileApp] { self.set.profiles }
+
+    /// Profil listesine uygulama ekler; aynı bundleID varsa eklemez.
+    func addProfile(_ app: ProfileApp) {
+        guard !set.profiles.contains(where: { $0.bundleID == app.bundleID }) else { return }
+        var next = set
+        next.profiles.append(app)
+        apply(next)
+    }
+
+    /// Yalnız listeden çıkarır; o uygulamanın atamalarına dokunmaz.
+    func removeProfile(bundleID: String) {
+        var next = set
+        next.profiles.removeAll { $0.bundleID == bundleID }
+        apply(next)
+    }
+
+    func dismissRecoveryNotice() { recoveryNotice = nil }
 
     func remove(id: UUID) {
         var next = set

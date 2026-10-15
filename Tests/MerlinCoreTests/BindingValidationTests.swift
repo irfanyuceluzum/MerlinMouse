@@ -52,3 +52,23 @@ final class BindingValidationTests: XCTestCase {
         XCTAssertTrue(r.canSave)
     }
 }
+
+final class SaveModeTests: XCTestCase {
+    private func c(_ l: ConflictLevel) -> Conflict { Conflict(level: l, title: "t", detail: "d") }
+
+    func testBlocked() {
+        XCTAssertEqual(BindingValidation.saveMode(conflicts: [c(.reserved)], missing: nil), .blocked)
+        XCTAssertEqual(BindingValidation.saveMode(conflicts: [c(.unsupported)], missing: nil), .blocked)
+        XCTAssertEqual(BindingValidation.saveMode(conflicts: [], missing: "eksik"), .blocked)
+    }
+
+    func testDirectAndOverride() {
+        XCTAssertEqual(BindingValidation.saveMode(conflicts: [c(.macOS), c(.btt), c(.shadows)], missing: nil), .direct)
+        XCTAssertEqual(BindingValidation.saveMode(conflicts: [c(.duplicate)], missing: nil), .override(c(.duplicate)))
+    }
+
+    func testHeaviest() {
+        XCTAssertEqual(BindingValidation.heaviest([c(.caution), c(.btt), c(.macOS)])?.level, .macOS)
+        XCTAssertNil(BindingValidation.heaviest([]))
+    }
+}

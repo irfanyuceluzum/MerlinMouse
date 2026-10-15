@@ -26,7 +26,7 @@ struct MerlinMouseApp: App {
         Window("Merlin Mouse", id: "main") {
             MainWindow()
         }
-        .defaultSize(width: 980, height: 660)
+        .defaultSize(width: 1120, height: 740)
         .defaultLaunchBehavior(.suppressed)
     }
 }
@@ -39,9 +39,14 @@ extension Notification.Name {
 /// Menü çubuğu simgesi; ana pencereyi açma bildirimini dinler.
 struct MenuBarLabel: View {
     @Environment(\.openWindow) private var openWindow
+    @ObservedObject private var model = AppModel.shared
+    @ObservedObject private var settings = Settings.shared
 
     var body: some View {
-        Image(systemName: "magicmouse")
+        // Duraklatılmış ya da kapalıyken soluk, çizgili simge.
+        let idle = !settings.enabled || model.isPaused
+        Image(systemName: idle ? "pause.circle" : "magicmouse")
+            .opacity(idle ? 0.5 : 1)
             .onReceive(NotificationCenter.default.publisher(for: .merlinOpenMain)) { _ in
                 openWindow(id: "main")
                 NSApp.activate(ignoringOtherApps: true)
@@ -59,23 +64,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.post(name: .merlinOpenMain, object: nil)
         return true
     }
-}
-
-/// Tasarımdaki derin mavi vurgu rengi (gündüz / gece).
-extension Color {
-    static let merlinAccent = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(srgbRed: 0.278, green: 0.404, blue: 0.933, alpha: 1)
-            : NSColor(srgbRed: 0.184, green: 0.357, blue: 0.827, alpha: 1)
-    })
-    static let merlinWarn = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(srgbRed: 1.0, green: 0.76, blue: 0.48, alpha: 1)
-            : NSColor(srgbRed: 0.56, green: 0.29, blue: 0.0, alpha: 1)
-    })
-    static let merlinBTT = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(srgbRed: 0.85, green: 0.74, blue: 1.0, alpha: 1)
-            : NSColor(srgbRed: 0.40, green: 0.20, blue: 0.66, alpha: 1)
-    })
 }

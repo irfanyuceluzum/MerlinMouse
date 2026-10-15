@@ -34,8 +34,11 @@ Normal sol tıklama hiçbir zaman değiştirilmez. MacBook'un dahili trackpad'i 
 
 ```bash
 ./build.sh
-open build/MerlinMouse.app
+open /Applications/MerlinMouse.app
 ```
+
+`./build.sh` uygulamayı `/Applications/MerlinMouse.app` konumuna da kurar. Kurmadan yalnız
+`build/` altına derlemek için `INSTALL=0 ./build.sh` kullan.
 
 İlk açılışta **Sistem Ayarları › Gizlilik ve Güvenlik › Erişilebilirlik** bölümünde
 Merlin Mouse'a izin ver. Tıklamaları orta tuşa çevirebilmek için bu izin gerekir.
@@ -43,6 +46,12 @@ Merlin Mouse'a izin ver. Tıklamaları orta tuşa çevirebilmek için bu izin ge
 `build.sh`, anahtar zincirinde bir "Apple Development" sertifikası varsa onunla imzalar;
 yoksa yerel (ad-hoc) imza kullanır. Ad-hoc imzada her yeniden derlemeden sonra
 Erişilebilirlik iznini kapatıp açman gerekir.
+
+### Gerçek fare görseli
+
+İstersen kendi Magic Mouse görselini `~/Library/Application Support/MerlinMouse/magic-mouse.png`
+konumuna koyabilirsin (arka planı saydam bir PNG önerilir; gövde otomatik kırpılır).
+Görsel repoya konmaz.
 
 Tanılama:
 

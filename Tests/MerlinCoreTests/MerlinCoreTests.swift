@@ -87,7 +87,8 @@ final class MerlinCoreTests: XCTestCase {
     func testDefaultBindingsFromLegacy() {
         let all = DefaultBindings.from(legacy: LegacyFlags(zoneClick: true, twoFingerClick: true,
                                                            threeFingerClick: true, threeFingerTap: true, fnDrag: true))
-        XCTAssertEqual(all.count, 7)
+        XCTAssertEqual(all.count, 5)
+        XCTAssertFalse(all.contains { $0.trigger.fingers == 4 })
         XCTAssertTrue(all.allSatisfy { $0.enabled && $0.action == .middleClick && $0.appBundleID == nil })
         let off = DefaultBindings.from(legacy: LegacyFlags(zoneClick: true, twoFingerClick: false,
                                                            threeFingerClick: false, threeFingerTap: true, fnDrag: false))
@@ -95,9 +96,7 @@ final class MerlinCoreTests: XCTestCase {
         XCTAssertEqual(enabled(Trigger(kind: .press, fingers: 1, zone: .center)), true)
         XCTAssertEqual(enabled(Trigger(kind: .press, fingers: 2)), false)
         XCTAssertEqual(enabled(Trigger(kind: .press, fingers: 3)), false)
-        XCTAssertEqual(enabled(Trigger(kind: .press, fingers: 4)), false)
         XCTAssertEqual(enabled(Trigger(kind: .tap, fingers: 3)), true)
-        XCTAssertEqual(enabled(Trigger(kind: .tap, fingers: 4)), true)
         XCTAssertEqual(enabled(Trigger(kind: .press, modifier: .fn)), false)
     }
 

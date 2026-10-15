@@ -13,6 +13,8 @@ final class Settings: ObservableObject {
     private(set) var threeFingerClick: Bool
     private(set) var threeFingerTap: Bool
     private(set) var fnDrag: Bool
+    /// Duraklatma bitiş zamanı (geçmişse nil).
+    @Published var pausedUntil: Date? { didSet { defaults.set(pausedUntil, forKey: "pausedUntil") } }
     @Published var blockScrollWhileDragging: Bool { didSet { save(blockScrollWhileDragging, "blockScrollWhileDragging") } }
     @Published var calm3DScroll: Bool { didSet { save(calm3DScroll, "calm3DScroll") } }
     /// Orta bölgenin genişliği, yüzey genişliğinin oranı olarak (0.15…0.45).
@@ -39,6 +41,11 @@ final class Settings: ObservableObject {
         zoneWidth = defaults.double(forKey: "zoneWidth")
         flipY = defaults.bool(forKey: "flipY")
         appearance = defaults.string(forKey: "appearance") ?? "system"
+        if let until = defaults.object(forKey: "pausedUntil") as? Date, until > Date() {
+            pausedUntil = until
+        } else {
+            pausedUntil = nil
+        }
     }
 
     private func save(_ value: Any, _ key: String) { defaults.set(value, forKey: key) }
