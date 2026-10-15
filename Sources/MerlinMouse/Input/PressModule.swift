@@ -47,11 +47,11 @@ final class PressModule: InputModule {
     private func matchBinding(_ type: CGEventType, _ event: CGEvent) -> GestureBinding? {
         let s = Settings.shared
         // Avuç içini saymamak için yalnızca öndeki parmaklara bak.
-        let xs = TouchMonitor.shared.touches
-            .filter { $0.front(flipped: s.flipY) >= TouchMonitor.frontLimit }
-            .map { $0.x }
+        let points = TouchMonitor.shared.touches
+            .map { TouchPoint(id: $0.id, x: $0.x, y: $0.front(flipped: s.flipY)) }
         let fnDown = type == .leftMouseDown && event.flags.contains(.maskSecondaryFn)
-        let candidates = PressResolver.candidates(frontFingerXs: xs, fnDown: fnDown, zoneWidth: s.zoneWidth)
+        let candidates = PressResolver.candidates(fingers: points, fnDown: fnDown,
+                                                  layout: s.zoneLayout)
         let index = BindingStore.shared.index
         let bundleID = FrontApp.shared.bundleID
         for trigger in candidates {

@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import MerlinCore
 
 /// Kullanıcı ayarları; her değişiklik UserDefaults'a yazılır.
 final class Settings: ObservableObject {
@@ -17,8 +18,8 @@ final class Settings: ObservableObject {
     @Published var pausedUntil: Date? { didSet { defaults.set(pausedUntil, forKey: "pausedUntil") } }
     @Published var blockScrollWhileDragging: Bool { didSet { save(blockScrollWhileDragging, "blockScrollWhileDragging") } }
     @Published var calm3DScroll: Bool { didSet { save(calm3DScroll, "calm3DScroll") } }
-    /// Orta bölgenin genişliği, yüzey genişliğinin oranı olarak (0.15…0.45).
-    @Published var zoneWidth: Double { didSet { save(zoneWidth, "zoneWidth") } }
+    /// Bölge düzeni (sol/orta/sağ sınırları, ön/arka sınırı); JSON olarak saklanır.
+    @Published var zoneLayout: ZoneLayout { didSet { saveLayout() } }
     /// Ön/arka yönü ters çevir (ayarlama için).
     @Published var flipY: Bool { didSet { save(flipY, "flipY") } }
     /// "system", "light" veya "dark".
@@ -38,7 +39,13 @@ final class Settings: ObservableObject {
         fnDrag = defaults.bool(forKey: "fnDrag")
         blockScrollWhileDragging = defaults.bool(forKey: "blockScrollWhileDragging")
         calm3DScroll = defaults.bool(forKey: "calm3DScroll")
-        zoneWidth = defaults.double(forKey: "zoneWidth")
+        // Eski "zoneWidth" yalnız göç kaynağı: düzen kayıtlı değilse ondan üretilir.
+        if let data = defaults.data(forKey: "zoneLayout"),
+           let saved = try? JSONDecoder().decode(ZoneLayout.self, from: data) {
+            zoneLayout = saved.clamped()
+        } else {
+            zoneLayout = ZoneLayout.fromLegacy(zoneWidth: defaults.double(forKey: "zoneWidth"))
+        }
         flipY = defaults.bool(forKey: "flipY")
         appearance = defaults.string(forKey: "appearance") ?? "system"
         if let until = defaults.object(forKey: "pausedUntil") as? Date, until > Date() {
@@ -49,6 +56,12 @@ final class Settings: ObservableObject {
     }
 
     private func save(_ value: Any, _ key: String) { defaults.set(value, forKey: key) }
+
+    private func saveLayout() {
+        if let data = try? JSONEncoder().encode(zoneLayout) { defaults.set(data, forKey: "zoneLayout") }
+    }
+
+    func resetZoneLayout() { zoneLayout = .standard }
 
     func applyAppearance() {
         switch appearance {

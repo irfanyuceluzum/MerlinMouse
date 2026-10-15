@@ -3,9 +3,10 @@ import XCTest
 
 final class GesturePresetsTests: XCTestCase {
     func testOrderAndCount() {
-        XCTAssertEqual(GesturePresets.all.count, 12)
+        XCTAssertEqual(GesturePresets.all.count, 14)
         XCTAssertEqual(GesturePresets.all.first?.title, "Orta bölgeye bas")
-        XCTAssertEqual(GesturePresets.all.last?.title, "Üç parmakla sağa kaydır")
+        XCTAssertEqual(GesturePresets.all.last?.title, "Arkaya (logoya) çift dokun")
+        XCTAssertEqual(GesturePresets.all[12].title, "Arkaya (logoya) dokun")
     }
 
     func testNoneReservedOrUnsupported() {

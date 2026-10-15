@@ -105,4 +105,91 @@ final class GestureRecognizerTests: XCTestCase {
         XCTAssertEqual(run(&r, xs: [0.5], duration: 0.1), [.tap(fingers: 1, zone: .center)])
         XCTAssertNil(r.pendingDeadline)
     }
+
+    // MARK: Arka (logo) dokunma
+
+    private func f(_ touches: [TouchPoint], _ t: Double) -> TouchFrame { TouchFrame(touches: touches, timestamp: t) }
+    private func rearPt(_ id: Int32 = 1, x: Float = 0.5, y: Float = 0.2) -> TouchPoint { TouchPoint(id: id, x: x, y: y) }
+
+    func testRearTap() {
+        var r = GestureRecognizer()
+        XCTAssertEqual(run(&r, xs: [0.5], y: 0.2, duration: 0.1), [.tap(fingers: 1, zone: .rear)])
+    }
+
+    func testRearTapIgnoredWhenClicked() {
+        var r = GestureRecognizer()
+        var out = r.process(f([rearPt()], 0))
+        r.noteClick()
+        out += r.process(f([], 0.1))
+        XCTAssertEqual(out, [])
+    }
+
+    func testRearPalmRestingProducesNothing() {
+        var r = GestureRecognizer()
+        XCTAssertEqual(run(&r, xs: [0.5], y: 0.2, duration: 0.6), [])
+        XCTAssertEqual(run(&r, xs: [0.5], y: 0.2, start: 5, duration: 3), [])
+    }
+
+    func testRearMovedTooMuch() {
+        var r = GestureRecognizer()
+        XCTAssertEqual(run(&r, xs: [0.5], y: 0.2, duration: 0.2, dx: 0.1), [])
+    }
+
+    func testRearNotProducedWithFrontFingerPresent() {
+        var r = GestureRecognizer()
+        // Ön parmak önce iner, sonra arkaya ikinci parmak.
+        var out = r.process(f([TouchPoint(id: 1, x: 0.2, y: 0.7)], 0))
+        out += r.process(f([TouchPoint(id: 1, x: 0.2, y: 0.7), rearPt(2)], 0.05))
+        out += r.process(f([TouchPoint(id: 1, x: 0.2, y: 0.7)], 0.1))
+        out += r.process(f([], 0.2))
+        XCTAssertFalse(out.contains(.tap(fingers: 1, zone: .rear)))
+        // Arka parmak önce, ön parmak sonra.
+        var r2 = GestureRecognizer()
+        var o2 = r2.process(f([rearPt()], 0))
+        o2 += r2.process(f([rearPt(), TouchPoint(id: 2, x: 0.5, y: 0.7)], 0.05))
+        o2 += r2.process(f([], 0.15))
+        XCTAssertFalse(o2.contains(.tap(fingers: 1, zone: .rear)))
+    }
+
+    func testRearNotProducedWhenSecondFingerAdded() {
+        var r = GestureRecognizer()
+        var out = r.process(f([rearPt()], 0))
+        out += r.process(f([rearPt(), rearPt(2, x: 0.7)], 0.05))
+        out += r.process(f([rearPt()], 0.1))
+        out += r.process(f([], 0.15))
+        XCTAssertEqual(out, [])
+    }
+
+    func testRearNotProducedWhenLandingOnTopOfRestingFinger() {
+        var r = GestureRecognizer()
+        // Ön parmak kalkarken arkada kalan parmak yeni oturum sayılmaz.
+        var out = r.process(f([TouchPoint(id: 1, x: 0.2, y: 0.7), rearPt(2)], 0))
+        out += r.process(f([rearPt(2)], 0.1))
+        out += r.process(f([], 0.2))
+        XCTAssertFalse(out.contains(.tap(fingers: 1, zone: .rear)))
+    }
+
+    func testRearDoubleTap() {
+        var r = GestureRecognizer()
+        r.wantsDoubleTap = { fingers, zone in fingers == 1 && zone == .rear }
+        var out = run(&r, xs: [0.5], y: 0.2, start: 0, duration: 0.1)
+        XCTAssertEqual(out, [])
+        out = run(&r, xs: [0.5], y: 0.2, start: 0.3, duration: 0.1)
+        XCTAssertEqual(out, [.doubleTap(fingers: 1, zone: .rear)])
+    }
+
+    func testRearSingleTapFlushedWhenDoubleWanted() {
+        var r = GestureRecognizer()
+        r.wantsDoubleTap = { _, zone in zone == .rear }
+        XCTAssertEqual(run(&r, xs: [0.5], y: 0.2, duration: 0.1), [])
+        let d = try! XCTUnwrap(r.pendingDeadline)
+        XCTAssertEqual(r.flush(now: d), [.tap(fingers: 1, zone: .rear)])
+    }
+
+    func testFrontOneFingerStillUsesLayout() {
+        var r = GestureRecognizer()
+        r.layout = ZoneLayout(leftEdge: 0.2, rightEdge: 0.5, frontLimit: 0.4)
+        XCTAssertEqual(run(&r, xs: [0.6], duration: 0.1), [.tap(fingers: 1, zone: .right)])
+        XCTAssertEqual(run(&r, xs: [0.1], start: 1, duration: 0.1), [.tap(fingers: 1, zone: .left)])
+    }
 }

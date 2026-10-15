@@ -29,7 +29,7 @@ public struct BindingIndex {
     public func match(_ trigger: Trigger, bundleID: String?) -> GestureBinding? {
         let t = trigger.normalized
         if let b = lookup(t, bundleID: bundleID) { return b }
-        if t.fingers == 1, t.zone != .any, t.kind == .tap || t.kind == .doubleTap {
+        if t.fingers == 1, t.zone != .any, t.zone != .rear, t.kind == .tap || t.kind == .doubleTap {
             var any = t
             any.zone = .any
             if let b = lookup(any, bundleID: bundleID) { return b }
@@ -58,7 +58,7 @@ public struct BindingIndex {
 
     public func hasDoubleTap(fingers: Int, zone: Zone = .any, bundleID: String? = nil) -> Bool {
         if hasBinding(kind: .doubleTap, fingers: fingers, zone: zone, bundleID: bundleID) { return true }
-        if fingers == 1, zone != .any {
+        if fingers == 1, zone != .any, zone != .rear {
             return hasBinding(kind: .doubleTap, fingers: 1, zone: .any, bundleID: bundleID)
         }
         return false

@@ -17,9 +17,6 @@ struct Touch: Identifiable, Equatable {
 final class TouchMonitor {
     static let shared = TouchMonitor()
 
-    /// Avuç içi dokunuşlarını ayırmak için: bu değerin önündekiler "parmak" sayılır.
-    static let frontLimit: Float = 0.4
-
     var onFrame: (([Touch]) -> Void)?
     /// Tanınan hareketler ana kuyrukta gelir.
     var onGesture: (([RecognizedGesture]) -> Void)?
@@ -51,10 +48,10 @@ final class TouchMonitor {
         lock.lock(); recognizer.noteClick(); lock.unlock()
     }
 
-    /// Bölge genişliği ve çift dokunma sorgusu tanıyıcıya verilir.
-    func configure(zoneWidth: Double, wantsDoubleTap: @escaping (Int, Zone) -> Bool) {
+    /// Bölge düzeni (ön/arka sınırı dahil) ve çift dokunma sorgusu tanıyıcıya verilir.
+    func configure(layout: ZoneLayout, wantsDoubleTap: @escaping (Int, Zone) -> Bool) {
         lock.lock()
-        recognizer.zoneWidth = zoneWidth
+        recognizer.layout = layout
         recognizer.wantsDoubleTap = wantsDoubleTap
         lock.unlock()
     }

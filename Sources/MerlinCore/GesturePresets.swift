@@ -25,5 +25,7 @@ public enum GesturePresets {
         GesturePreset(title: "Üç parmakla aşağı kaydır", trigger: Trigger(kind: .swipe, fingers: 3, direction: .down)),
         GesturePreset(title: "Üç parmakla sola kaydır", trigger: Trigger(kind: .swipe, fingers: 3, direction: .left)),
         GesturePreset(title: "Üç parmakla sağa kaydır", trigger: Trigger(kind: .swipe, fingers: 3, direction: .right)),
+        GesturePreset(title: "Arkaya (logoya) dokun", trigger: Trigger(kind: .tap, fingers: 1, zone: .rear)),
+        GesturePreset(title: "Arkaya (logoya) çift dokun", trigger: Trigger(kind: .doubleTap, fingers: 1, zone: .rear)),
     ]
 }

@@ -8,7 +8,7 @@ public enum TriggerOptions {
     public static func fingerChoices(kind: GestureKind) -> [Int] {
         switch kind {
         case .press: return [1, 2, 3, 4]
-        case .tap: return [2, 3, 4]
+        case .tap: return [1, 2, 3, 4]
         case .doubleTap: return [1, 2, 3, 4]
         case .swipe: return [3, 4]
         case .hold: return []
@@ -20,7 +20,8 @@ public enum TriggerOptions {
         guard fingers == 1, modifier == .none else { return [] }
         switch kind {
         case .press: return [.center, .right]
-        case .doubleTap: return [.any, .left, .center, .right]
+        case .tap: return [.rear]
+        case .doubleTap: return [.any, .left, .center, .right, .rear]
         default: return []
         }
     }
@@ -56,7 +57,7 @@ public enum TriggerOptions {
         case .press where fingers == 1:
             return "Sol bölgeye basmak normal sol tıklamadır; değiştirilemez."
         case .tap where fingers == 1:
-            return "Tek parmakla dokunma fareyi tutarken kazara tetiklenir."
+            return "Tek parmakla dokunma yalnız arka (logo) bölgesinde atanabilir; başka yerde fareyi tutarken kazara tetiklenir."
         case .swipe where fingers < 3:
             return "Bir ve iki parmakla kaydırma macOS kaydırmasıdır."
         default:

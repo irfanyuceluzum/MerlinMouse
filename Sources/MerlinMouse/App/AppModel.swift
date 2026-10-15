@@ -23,6 +23,8 @@ final class AppModel: ObservableObject {
     @Published var lastAction = "Henüz yok"
     @Published var liveTouches: [Touch] = []
     @Published var warnings: [Warning] = []
+    /// İzin sıfırlama başarısız olursa kullanıcıya gösterilen yönerge.
+    @Published var permissionHelp: String?
     /// Ana pencerenin açılması istenen sayfa (`MainWindow.Page.rawValue`); pencere görünce sıfırlar.
     @Published var requestedPage: String?
     @Published private(set) var mouseImage: NSImage?
@@ -83,11 +85,11 @@ final class AppModel: ObservableObject {
             .store(in: &cancellables)
     }
 
-    /// Tanıyıcıya güncel bölge genişliğini ve (indeks kopyasıyla) çift dokunma sorgusunu verir.
+    /// Tanıyıcıya güncel bölge düzenini ve (indeks kopyasıyla) çift dokunma sorgusunu verir.
     private func updateGestureConfig() {
         let index = BindingStore.shared.index
         let bundleID = FrontApp.shared.bundleID
-        TouchMonitor.shared.configure(zoneWidth: settings.zoneWidth) { fingers, zone in
+        TouchMonitor.shared.configure(layout: settings.zoneLayout) { fingers, zone in
             index.hasDoubleTap(fingers: fingers, zone: zone, bundleID: bundleID)
                 || (fingers == 4 && index.hasDoubleTap(fingers: 3, zone: zone, bundleID: bundleID))
         }
@@ -182,6 +184,34 @@ final class AppModel: ObservableObject {
     func openAccessibilitySettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Eski (yeniden derleme yüzünden geçersiz kalan) Erişilebilirlik kaydını siler, izni yeniden ister.
+    func resetAccessibilityPermission() {
+        let bundleID = Bundle.main.bundleIdentifier ?? "dev.merlinmouse.MerlinMouse"
+        permissionHelp = nil
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+            process.arguments = ["reset", "Accessibility", bundleID]
+            var ok = false
+            do {
+                try process.run()
+                process.waitUntilExit()
+                ok = process.terminationStatus == 0
+                Log.write("İzin sıfırlama (tccutil) · çıkış \(process.terminationStatus)")
+            } catch {
+                Log.write("İzin sıfırlama başarısız: \(error.localizedDescription)")
+            }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if !ok {
+                    self.permissionHelp = "Sıfırlanamadı. Sistem Ayarları › Gizlilik ve Güvenlik › Erişilebilirlik'te Merlin Mouse'u – ile silip + ile /Applications/MerlinMouse.app'i yeniden ekle."
+                }
+                self.checkTrust(prompt: true)
+                self.openAccessibilitySettings()
+            }
         }
     }
 

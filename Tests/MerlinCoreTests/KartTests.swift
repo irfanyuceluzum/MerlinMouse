@@ -35,6 +35,20 @@ final class KartTests: XCTestCase {
         XCTAssertEqual(idx2.match(Trigger(kind: .tap, fingers: 1, zone: .center), bundleID: nil)?.id, exact.id)
     }
 
+    func testRearDoesNotFallBackToAny() {
+        let tap = b(Trigger(kind: .tap, fingers: 1, zone: .any))
+        let dbl = b(Trigger(kind: .doubleTap, fingers: 1, zone: .any))
+        let idx = BindingIndex(bindings: [tap, dbl])
+        XCTAssertNil(idx.match(Trigger(kind: .tap, fingers: 1, zone: .rear), bundleID: nil))
+        XCTAssertNil(idx.match(Trigger(kind: .doubleTap, fingers: 1, zone: .rear), bundleID: nil))
+        XCTAssertFalse(idx.hasDoubleTap(fingers: 1, zone: .rear, bundleID: nil))
+        let rear = b(Trigger(kind: .tap, fingers: 1, zone: .rear), action: .back)
+        let rdbl = b(Trigger(kind: .doubleTap, fingers: 1, zone: .rear), action: .back)
+        let idx2 = BindingIndex(bindings: [rear, rdbl])
+        XCTAssertEqual(idx2.match(Trigger(kind: .tap, fingers: 1, zone: .rear), bundleID: nil)?.id, rear.id)
+        XCTAssertTrue(idx2.hasDoubleTap(fingers: 1, zone: .rear, bundleID: nil))
+    }
+
     // 3
     func testFourFingersFallBackToThree() {
         let press = b(Trigger(kind: .press, fingers: 3))
@@ -135,7 +149,7 @@ final class KartTests: XCTestCase {
         XCTAssertEqual(TriggerOptions.unavailableZoneReason(kind: .press, fingers: 1, modifier: .none),
                        "Sol bölgeye basmak normal sol tıklamadır; değiştirilemez.")
         XCTAssertEqual(TriggerOptions.unavailableZoneReason(kind: .tap, fingers: 1, modifier: .none),
-                       "Tek parmakla dokunma fareyi tutarken kazara tetiklenir.")
+                       "Tek parmakla dokunma yalnız arka (logo) bölgesinde atanabilir; başka yerde fareyi tutarken kazara tetiklenir.")
         XCTAssertEqual(TriggerOptions.unavailableZoneReason(kind: .swipe, fingers: 2, modifier: .none),
                        "Bir ve iki parmakla kaydırma macOS kaydırmasıdır.")
         XCTAssertNil(TriggerOptions.unavailableZoneReason(kind: .swipe, fingers: 3, modifier: .none))

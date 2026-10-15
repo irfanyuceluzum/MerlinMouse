@@ -212,6 +212,8 @@ struct MMBanner: View {
     var message: String?
     var actionTitle: String?
     var action: (() -> Void)?
+    var secondaryTitle: String?
+    var secondaryAction: (() -> Void)?
 
     init(kind: Kind, title: String, message: String? = nil, actionTitle: String? = nil, action: (() -> Void)? = nil) {
         self.kind = kind
@@ -219,6 +221,14 @@ struct MMBanner: View {
         self.message = message
         self.actionTitle = actionTitle
         self.action = action
+    }
+
+    /// İkinci (soldaki) eylem düğmesi ekler.
+    func secondary(_ title: String, _ action: @escaping () -> Void) -> MMBanner {
+        var copy = self
+        copy.secondaryTitle = title
+        copy.secondaryAction = action
+        return copy
     }
 
     var body: some View {
@@ -236,6 +246,15 @@ struct MMBanner: View {
                 }
             }
             Spacer(minLength: 8)
+            if let secondaryTitle, let secondaryAction {
+                Button(action: secondaryAction) {
+                    Text(secondaryTitle).font(.system(size: 12.5, weight: .medium)).foregroundStyle(fg)
+                        .padding(.horizontal, 12).padding(.vertical, 5)
+                        .background(MM.card, in: Capsule())
+                        .overlay(Capsule().strokeBorder(warn ? MM.warnLine : MM.accentLine, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
             if let actionTitle, let action {
                 Button(action: action) {
                     Text(actionTitle).font(.system(size: 12.5, weight: .medium)).foregroundStyle(fg)

@@ -28,31 +28,26 @@ struct GeneralPage: View {
                         .pickerStyle(.segmented).labelsHidden().frame(width: 220)
                     }
                     MMDivider()
-                    row("Orta bölge genişliği", nil) {
-                        HStack(spacing: 10) {
-                            Slider(value: $s.zoneWidth, in: 0.15...0.45).frame(width: 180)
-                            Text("%\(Int((s.zoneWidth * 100).rounded()))")
-                                .font(.system(size: 12.5, design: .monospaced)).foregroundStyle(MM.text2)
-                                .frame(width: 38, alignment: .trailing)
-                        }
-                    }
-                    MMDivider()
                     MMSwitchRow(title: "Ön / arka yönünü ters çevir",
                                 subtitle: "Haritada ön taraf yukarıda görünmüyorsa aç", isOn: $s.flipY)
                 }
                 card("Erişilebilirlik") {
-                    row("İzin", "Tıklamaları dönüştürmek için gerekir") {
+                    row("İzin", "Tıklamaları dönüştürmek için gerekir. Listede açık görünüyorsa ama çalışmıyorsa: uygulama yeniden derlendiği için eski kayıt geçersizdir.") {
                         HStack(spacing: 10) {
                             statusChip(model.trusted ? "Verildi" : "Verilmedi", ok: model.trusted)
-                            if !model.trusted {
-                                MMSecondaryButton("Ayarları aç") { model.openAccessibilitySettings() }
-                            }
+                            MMSecondaryButton("Ayarları aç") { model.openAccessibilitySettings() }
+                            MMSecondaryButton("İzni sıfırla ve yeniden iste") { model.resetAccessibilityPermission() }
                         }
+                    }
+                    if let help = model.permissionHelp {
+                        Text(help).font(.system(size: 12)).foregroundStyle(MM.warnText)
+                            .padding(.horizontal, 20).padding(.bottom, 12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 card("Fare görseli") {
                     HStack(spacing: 16) {
-                        MouseZoneMap(zoneWidth: 0, image: model.mouseImage, width: 54, showLabels: false)
+                        MouseZoneMap(layout: .standard, image: model.mouseImage, width: 54, showLabels: false)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Görsel yoksa çizilmiş fare gösterilir. Görsel yalnız bu Mac'te saklanır.")
                                 .font(.system(size: 12.5)).foregroundStyle(MM.text2)

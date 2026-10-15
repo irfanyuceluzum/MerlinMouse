@@ -41,13 +41,12 @@ public enum RecognizedGesture: Equatable {
 
 /// Dokunma, çift dokunma ve 3+ parmak kaydırmayı karelerden tanıyan saf durum makinesi.
 public struct GestureRecognizer {
-    public var frontLimit: Float = 0.4
+    public var layout: ZoneLayout = .standard
     public var tapMaxDuration: Double = 0.35
     public var tapMaxMove: Float = 0.04
     public var landingWindow: Double = 0.15
     public var swipeMinDistance: Float = 0.12
     public var doubleTapWindow: Double = 0.35
-    public var zoneWidth: Double = 0.30
     public var wantsDoubleTap: (Int, Zone) -> Bool = { _, _ in false }
 
     private struct Session {
@@ -63,6 +62,16 @@ public struct GestureRecognizer {
         var lastCentroid: (Float, Float)?
     }
 
+    /// Arka (logo) bölgesindeki tek parmaklı dokunma oturumu.
+    private struct RearSession {
+        var id: Int32
+        var start: Double
+        var origin: (Float, Float)
+        var maxMove: Float = 0
+        var invalid = false
+        var clicked = false
+    }
+
     private struct Pending {
         var fingers: Int
         var zone: Zone
@@ -71,6 +80,8 @@ public struct GestureRecognizer {
     }
 
     private var session: Session?
+    private var rear: RearSession?
+    private var surfaceWasEmpty = true
     private var pending: Pending?
 
     public init() {}
@@ -81,12 +92,15 @@ public struct GestureRecognizer {
     /// Fiziksel tıklama oldu: açık oturum hiçbir hareket üretmez.
     public mutating func noteClick() {
         session?.clicked = true
+        rear?.clicked = true
     }
 
     public mutating func process(_ frame: TouchFrame) -> [RecognizedGesture] {
-        let front = frame.touches.filter { $0.y >= frontLimit }
+        let front = frame.touches.filter { Double($0.y) >= layout.frontLimit }
         let t = frame.timestamp
         var out: [RecognizedGesture] = []
+
+        updateRear(frame, at: t, into: &out)
 
         if front.isEmpty {
             if let s = session {
@@ -97,8 +111,30 @@ public struct GestureRecognizer {
             if session == nil { session = Session(start: t) }
             update(front, at: t)
         }
+        surfaceWasEmpty = frame.touches.isEmpty
         expire(now: t, into: &out)
         return out
+    }
+
+    /// Arka dokunma: yüzey boşken tek parmak arkaya iner, oturum boyunca başka parmak gelmez.
+    private mutating func updateRear(_ frame: TouchFrame, at t: Double, into out: inout [RecognizedGesture]) {
+        let all = frame.touches
+        if var r = rear {
+            if all.isEmpty {
+                rear = nil
+                if !r.invalid, !r.clicked, t - r.start <= tapMaxDuration, r.maxMove < tapMaxMove {
+                    registerTap(fingers: 1, zone: .rear, start: r.start, end: t, into: &out)
+                }
+                return
+            }
+            if all.count != 1 || all[0].id != r.id { r.invalid = true }
+            if let p = all.first(where: { $0.id == r.id }) {
+                r.maxMove = max(r.maxMove, hypot(p.x - r.origin.0, p.y - r.origin.1))
+            }
+            rear = r
+        } else if surfaceWasEmpty, all.count == 1, Double(all[0].y) < layout.frontLimit {
+            rear = RearSession(id: all[0].id, start: t, origin: (all[0].x, all[0].y))
+        }
     }
 
     /// Bekleyen tek dokunmayı, süresi dolduysa `.tap` olarak döndürür.
@@ -136,7 +172,7 @@ public struct GestureRecognizer {
     private mutating func finish(_ s: Session, end: Double, into out: inout [RecognizedGesture]) {
         guard !s.invalid, !s.clicked, s.fingers > 0 else { return }
         if end - s.start <= tapMaxDuration && s.maxMove < tapMaxMove {
-            let zone: Zone = s.fingers == 1 ? Zone.classify(x: s.firstZoneX, zoneWidth: zoneWidth) : .any
+            let zone: Zone = s.fingers == 1 ? Zone.classify(x: s.firstZoneX, y: 1, layout: layout) : .any
             registerTap(fingers: s.fingers, zone: zone, start: s.start, end: end, into: &out)
             return
         }
@@ -172,6 +208,7 @@ public struct GestureRecognizer {
         guard let p = pending, now >= p.deadline else { return }
         // Süre dolmadan başlamış bir oturum hâlâ sürüyorsa eşleşme ihtimali var; bekle.
         if let s = session, s.start <= p.deadline { return }
+        if let r = rear, r.start <= p.deadline { return }
         pending = nil
         out.append(.tap(fingers: p.fingers, zone: p.zone))
     }

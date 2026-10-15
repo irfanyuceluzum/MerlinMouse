@@ -2,45 +2,73 @@ import XCTest
 @testable import MerlinCore
 
 final class PressResolverTests: XCTestCase {
+    private let std = ZoneLayout.symmetric(width: 0.3)
+
+    private func pts(_ xs: [Float], y: Float = 0.7) -> [TouchPoint] {
+        xs.enumerated().map { TouchPoint(id: Int32($0.offset + 1), x: $0.element, y: y) }
+    }
+
     func testSingleFingerLeftNoCandidate() {
-        XCTAssertEqual(PressResolver.candidates(frontFingerXs: [0.1], fnDown: false, zoneWidth: 0.3), [])
+        XCTAssertEqual(PressResolver.candidates(fingers: pts([0.1]), fnDown: false, layout: std), [])
     }
 
     func testNoFingersNoCandidate() {
-        XCTAssertEqual(PressResolver.candidates(frontFingerXs: [], fnDown: false, zoneWidth: 0.3), [])
+        XCTAssertEqual(PressResolver.candidates(fingers: [], fnDown: false, layout: std), [])
     }
 
     func testSingleFingerCenter() {
-        XCTAssertEqual(PressResolver.candidates(frontFingerXs: [0.5], fnDown: false, zoneWidth: 0.3),
+        XCTAssertEqual(PressResolver.candidates(fingers: pts([0.5]), fnDown: false, layout: std),
                        [Trigger(kind: .press, fingers: 1, zone: .center)])
     }
 
     func testSingleFingerRight() {
-        XCTAssertEqual(PressResolver.candidates(frontFingerXs: [0.9], fnDown: false, zoneWidth: 0.3),
+        XCTAssertEqual(PressResolver.candidates(fingers: pts([0.9]), fnDown: false, layout: std),
+                       [Trigger(kind: .press, fingers: 1, zone: .right)])
+    }
+
+    func testRearFingerNeverCandidate() {
+        XCTAssertEqual(PressResolver.candidates(fingers: pts([0.5], y: 0.2), fnDown: false, layout: std), [])
+        // Avuç (arka) + ön tek parmak: yalnız öndeki sayılır.
+        let mixed = pts([0.5], y: 0.2) + [TouchPoint(id: 9, x: 0.9, y: 0.8)]
+        XCTAssertEqual(PressResolver.candidates(fingers: mixed, fnDown: false, layout: std),
+                       [Trigger(kind: .press, fingers: 1, zone: .right)])
+    }
+
+    func testAsymmetricLayout() {
+        let l = ZoneLayout(leftEdge: 0.2, rightEdge: 0.5, frontLimit: 0.4)
+        XCTAssertEqual(PressResolver.candidates(fingers: pts([0.15]), fnDown: false, layout: l), [])
+        XCTAssertEqual(PressResolver.candidates(fingers: pts([0.4]), fnDown: false, layout: l),
+                       [Trigger(kind: .press, fingers: 1, zone: .center)])
+        XCTAssertEqual(PressResolver.candidates(fingers: pts([0.6]), fnDown: false, layout: l),
                        [Trigger(kind: .press, fingers: 1, zone: .right)])
     }
 
     func testFiveFingersCapsAtFour() {
-        let c = PressResolver.candidates(frontFingerXs: [0.1, 0.2, 0.3, 0.4, 0.5], fnDown: false, zoneWidth: 0.3)
+        let c = PressResolver.candidates(fingers: pts([0.1, 0.2, 0.3, 0.4, 0.5]), fnDown: false, layout: std)
         XCTAssertEqual(c, [Trigger(kind: .press, fingers: 4)])
     }
 
     func testFnWithLeftFingerOnlyFn() {
-        let c = PressResolver.candidates(frontFingerXs: [0.1], fnDown: true, zoneWidth: 0.3)
+        let c = PressResolver.candidates(fingers: pts([0.1]), fnDown: true, layout: std)
         XCTAssertEqual(c, [Trigger(kind: .press, fingers: 0, modifier: .fn)])
     }
 
     func testFnFirstThenFingers() {
-        let c = PressResolver.candidates(frontFingerXs: [0.4, 0.6], fnDown: true, zoneWidth: 0.3)
+        let c = PressResolver.candidates(fingers: pts([0.4, 0.6]), fnDown: true, layout: std)
         XCTAssertEqual(c, [Trigger(kind: .press, fingers: 0, modifier: .fn), Trigger(kind: .press, fingers: 2)])
     }
 
-    func testZoneClassifyBoundaries() {
-        // 0.25 / 0.75 / 0.5 ikilik tabanda tam gösterilir; sınır değerleri kesin.
-        XCTAssertEqual(Zone.classify(x: 0.25, zoneWidth: 0.5), .center)
-        XCTAssertEqual(Zone.classify(x: 0.75, zoneWidth: 0.5), .center)
-        XCTAssertEqual(Zone.classify(x: 0.5, zoneWidth: 0.5), .center)
-        XCTAssertEqual(Zone.classify(x: 0.2, zoneWidth: 0.5), .left)
-        XCTAssertEqual(Zone.classify(x: 0.8, zoneWidth: 0.5), .right)
+    func testClassifyFourZonesAndBoundaries() {
+        let l = ZoneLayout(leftEdge: 0.25, rightEdge: 0.75, frontLimit: 0.4)
+        XCTAssertEqual(Zone.classify(x: 0.1, y: 0.7, layout: l), .left)
+        XCTAssertEqual(Zone.classify(x: 0.5, y: 0.7, layout: l), .center)
+        XCTAssertEqual(Zone.classify(x: 0.9, y: 0.7, layout: l), .right)
+        XCTAssertEqual(Zone.classify(x: 0.5, y: 0.1, layout: l), .rear)
+        XCTAssertEqual(Zone.classify(x: 0.05, y: 0.1, layout: l), .rear)
+        // Sınırlar: leftEdge ve rightEdge orta bölgeye, frontLimit ön bölgeye dahil.
+        XCTAssertEqual(Zone.classify(x: 0.25, y: 0.7, layout: l), .center)
+        XCTAssertEqual(Zone.classify(x: 0.75, y: 0.7, layout: l), .center)
+        XCTAssertEqual(Zone.classify(x: 0.1, y: 0.4, layout: l), .left)
+        XCTAssertEqual(Zone.classify(x: 0.1, y: 0.399, layout: l), .rear)
     }
 }

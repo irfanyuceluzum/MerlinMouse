@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import MerlinCore
 
 extension GestureBinding: Identifiable {}
@@ -9,6 +10,7 @@ struct BindingListView: View {
     @ObservedObject private var store = BindingStore.shared
     @State private var editing: GestureBinding?
     @State private var deleting: GestureBinding?
+    @State private var hovered: UUID?
 
     private var items: [GestureBinding] { store.bindings.filter { $0.appBundleID == scope } }
 
@@ -39,6 +41,7 @@ struct BindingListView: View {
                         MMSectionLabel("Eylem").frame(width: cols.action, alignment: .leading)
                         MMSectionLabel("Durum").frame(width: cols.status, alignment: .leading)
                         MMSectionLabel("Açık").frame(width: 56, alignment: .leading)
+                        Color.clear.frame(width: Columns.editWidth + 12 + Columns.chevronWidth, height: 1)
                     }
                     .padding(.horizontal, 20).padding(.vertical, 12)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -85,9 +88,11 @@ struct BindingListView: View {
     }
 
     private struct Columns {
+        static let editWidth: CGFloat = 82
+        static let chevronWidth: CGFloat = 10
         let trigger: CGFloat, action: CGFloat, status: CGFloat
         init(total: CGFloat) {
-            let avail = max(300, total - 40 - 3 * 12 - 56)
+            let avail = max(300, total - 40 - 5 * 12 - 56 - Columns.editWidth - Columns.chevronWidth)
             let unit = avail / 5.1
             trigger = unit * 2.2; action = unit * 1.5; status = unit * 1.4
         }
@@ -131,13 +136,35 @@ struct BindingListView: View {
             MMSwitch(isOn: Binding(get: { b.enabled }, set: { store.setEnabled(id: b.id, $0) }),
                      label: "\(b.trigger.title) hareketi")
                 .frame(width: 56, alignment: .leading)
+            Button { editing = b } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "pencil").font(.system(size: 11, weight: .semibold))
+                    Text("Düzenle").font(.system(size: 12))
+                }
+                .foregroundStyle(MM.text)
+                .padding(.horizontal, 9).frame(width: Columns.editWidth, height: 26)
+                .background(MM.card, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(MM.line, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(b.trigger.title) hareketini düzenle")
+            Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(MM.text2).frame(width: Columns.chevronWidth)
         }
         .padding(.horizontal, 20).padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(kind == .macOS ? MM.warnBg : Color.clear)
+        .background(hovered == b.id ? MM.card2 : (kind == .macOS ? MM.warnBg : Color.clear))
         .overlay(alignment: .bottom) { Rectangle().fill(MM.line2).frame(height: 1) }
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) { editing = b }
+        .onHover { inside in
+            if inside { hovered = b.id; NSCursor.pointingHand.push() } else {
+                if hovered == b.id { hovered = nil }
+                NSCursor.pop()
+            }
+        }
+        .onTapGesture { editing = b }
+        .accessibilityElement(children: .contain)
+        .accessibilityHint("\(b.trigger.title) hareketini düzenle")
         .contextMenu {
             Button("Düzenle") { editing = b }
             Button("Sil", role: .destructive) { deleting = b }

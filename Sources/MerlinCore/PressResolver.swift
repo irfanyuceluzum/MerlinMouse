@@ -1,30 +1,32 @@
 import Foundation
 
 extension Zone {
-    /// Tek parmağın x konumunu (0…1) bölgeye çevirir; `zoneWidth` orta bölgenin oranıdır.
-    public static func classify(x: Float, zoneWidth: Double) -> Zone {
-        let half = zoneWidth / 2
-        let dx = Double(x) - 0.5
-        if abs(dx) <= half { return .center }
-        return dx < 0 ? .left : .right
+    /// Bir parmağın konumunu (x: 0 sol → 1 sağ, y: 0 arka → 1 ön) bölgeye çevirir.
+    public static func classify(x: Float, y: Float, layout: ZoneLayout) -> Zone {
+        if Double(y) < layout.frontLimit { return .rear }
+        let dx = Double(x)
+        if dx < layout.leftEdge { return .left }
+        return dx <= layout.rightEdge ? .center : .right
     }
 }
 
 /// Basış anındaki parmaklardan eşleştirilecek tetik adaylarını üretir.
 public enum PressResolver {
     /// Sıra öncelik sırasıdır: önce Fn, sonra parmak sayısına göre basış.
-    public static func candidates(frontFingerXs: [Float], fnDown: Bool, zoneWidth: Double) -> [Trigger] {
+    /// Yalnız öndeki parmaklar (y >= frontLimit) sayılır; arka bölge basış için aday değildir.
+    public static func candidates(fingers: [TouchPoint], fnDown: Bool, layout: ZoneLayout) -> [Trigger] {
         var out: [Trigger] = []
         if fnDown {
             out.append(Trigger(kind: .press, fingers: 0, modifier: .fn))
         }
-        let n = frontFingerXs.count
+        let front = fingers.filter { Double($0.y) >= layout.frontLimit }
+        let n = front.count
         if n >= 2 {
             out.append(Trigger(kind: .press, fingers: min(n, 4)))
         } else if n == 1 {
-            let zone = Zone.classify(x: frontFingerXs[0], zoneWidth: zoneWidth)
+            let zone = Zone.classify(x: front[0].x, y: front[0].y, layout: layout)
             // Tek parmakla sol bölge normal sol tıklamadır; aday yok.
-            if zone != .left {
+            if zone != .left && zone != .rear {
                 out.append(Trigger(kind: .press, fingers: 1, zone: zone))
             }
         }

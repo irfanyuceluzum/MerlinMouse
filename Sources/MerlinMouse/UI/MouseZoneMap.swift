@@ -1,12 +1,15 @@
 import SwiftUI
 import AppKit
+import MerlinCore
 
-/// Magic Mouse üstten görünüm: orta bölge, macOS ikincil tıklama bölgesi ve canlı parmak noktaları.
+/// Magic Mouse üstten görünüm: sol/orta/sağ bölge, arka (logo) bölgesi, macOS ikincil tıklama bölgesi ve canlı parmak noktaları.
 /// Görsel verilirse onu çizer; yoksa kodla çizilmiş gerçekçi bir fare gösterir.
 struct MouseZoneMap: View {
     var touches: [Touch] = []
-    /// Orta bölgenin genişlik oranı; 0 ise orta bölge çizilmez.
-    var zoneWidth: Double
+    /// Bölge düzeni (sol | orta | sağ sınırları ve ön/arka sınırı).
+    var layout: ZoneLayout
+    /// Doğruysa sınır tutamaçları sürüklenerek `Settings.zoneLayout` güncellenir.
+    var editable: Bool = false
     var flipped: Bool = false
     var image: NSImage? = nil
     /// TwoButton ise sağ bölge taralı turuncu gösterilir.
@@ -30,7 +33,9 @@ struct MouseZoneMap: View {
                 Canvas { ctx, size in drawMouse(&ctx, size: size) }
             }
             Canvas { ctx, size in drawOverlay(&ctx, size: size) }
+            if editable { handles }
         }
+        .coordinateSpace(name: "zoneMap")
         .frame(width: width, height: height)
         .accessibilityElement()
         .accessibilityLabel("Magic Mouse dokunma haritası")
@@ -71,66 +76,65 @@ struct MouseZoneMap: View {
 
     // MARK: Bölgeler ve parmaklar
 
+    private static let orange = Color(red: 224 / 255, green: 123 / 255, blue: 18 / 255)
+
     private func drawOverlay(_ ctx: inout GraphicsContext, size: CGSize) {
         let s = size.width / Self.vbW
         let b = Self.body
-        let frontBottom = b.minY + b.height * CGFloat(1 - TouchMonitor.frontLimit)
-        let center = zoneWidth > 0 ? b.width * CGFloat(zoneWidth) : 0
-        let cx0 = b.midX - center / 2, cx1 = b.midX + center / 2
+        let frontBottom = b.minY + b.height * CGFloat(1 - layout.frontLimit)
+        let cx0 = b.minX + b.width * CGFloat(layout.leftEdge)
+        let cx1 = b.minX + b.width * CGFloat(layout.rightEdge)
 
         var inner = ctx
         inner.clip(to: bodyPath(s))
 
-        if center > 0 {
-            inner.fill(Path(CGRect(x: cx0 * s, y: b.minY * s, width: center * s, height: (frontBottom - b.minY) * s)),
+        if showLabels {
+            // Orta bölge
+            inner.fill(Path(CGRect(x: cx0 * s, y: b.minY * s, width: (cx1 - cx0) * s, height: (frontBottom - b.minY) * s)),
                        with: .color(MM.accent.opacity(0.16)))
-        }
-        if secondaryRightZone {
-            let x0 = (center > 0 ? cx1 : b.midX + b.width * 0.15) // sağ bölge orta bölgenin bittiği yerden başlar
-            let rect = CGRect(x: x0 * s, y: b.minY * s, width: (b.maxX - x0) * s, height: (frontBottom - b.minY) * s)
-            var hatch = inner
-            hatch.clip(to: Path(rect))
-            hatch.fill(Path(rect), with: .color(Color(red: 224 / 255, green: 123 / 255, blue: 18 / 255).opacity(0.10)))
-            var lines = Path()
-            var x = rect.minX - rect.height
-            while x < rect.maxX {
-                lines.move(to: CGPoint(x: x, y: rect.maxY))
-                lines.addLine(to: CGPoint(x: x + rect.height, y: rect.minY))
-                x += 14 * s * 1.41
+            // Sağ bölge: ikincil tıklama ise taralı turuncu
+            if secondaryRightZone {
+                let rect = CGRect(x: cx1 * s, y: b.minY * s, width: (b.maxX - cx1) * s, height: (frontBottom - b.minY) * s)
+                var hatch = inner
+                hatch.clip(to: Path(rect))
+                hatch.fill(Path(rect), with: .color(Self.orange.opacity(0.10)))
+                var lines = Path()
+                var x = rect.minX - rect.height
+                while x < rect.maxX {
+                    lines.move(to: CGPoint(x: x, y: rect.maxY))
+                    lines.addLine(to: CGPoint(x: x + rect.height, y: rect.minY))
+                    x += 14 * s * 1.41
+                }
+                hatch.stroke(lines, with: .color(Self.orange.opacity(0.45)), lineWidth: 5 * s)
             }
-            hatch.stroke(lines, with: .color(Color(red: 224 / 255, green: 123 / 255, blue: 18 / 255).opacity(0.45)),
-                         lineWidth: 5 * s)
-        }
-        let dash = StrokeStyle(lineWidth: max(1, 3 * s), dash: [10 * s, 7 * s])
-        if center > 0 {
+            // Arka (logo) bölgesi
+            inner.fill(Path(CGRect(x: b.minX * s, y: frontBottom * s, width: b.width * s, height: (b.maxY - frontBottom) * s)),
+                       with: .color(MM.bttDot.opacity(0.12)))
+
+            let dash = StrokeStyle(lineWidth: max(1, 3 * s), dash: [10 * s, 7 * s])
             for x in [cx0, cx1] {
                 var p = Path()
                 p.move(to: CGPoint(x: x * s, y: b.minY * s))
                 p.addLine(to: CGPoint(x: x * s, y: frontBottom * s))
                 inner.stroke(p, with: .color(MM.accent), style: dash)
             }
-        }
-        var sep = Path()
-        sep.move(to: CGPoint(x: 20 * s, y: frontBottom * s))
-        sep.addLine(to: CGPoint(x: 370 * s, y: frontBottom * s))
-        inner.stroke(sep, with: .color(Color(red: 0.557, green: 0.557, blue: 0.576)),
-                     style: StrokeStyle(lineWidth: max(1, 2 * s), dash: [4 * s, 9 * s]))
+            var sep = Path()
+            sep.move(to: CGPoint(x: b.minX * s, y: frontBottom * s))
+            sep.addLine(to: CGPoint(x: b.maxX * s, y: frontBottom * s))
+            inner.stroke(sep, with: .color(Color(red: 0.43, green: 0.43, blue: 0.46)), style: dash)
 
-        // Etiketler: fare yüzeyi hep açık renk olduğundan sabit koyu yazı.
-        let labelY = 130 * s
-        if showLabels {
-        let leftX = (b.minX + (center > 0 ? cx0 : b.midX - 40) ) / 2 * s
-        ctx.draw(Text("Sol").font(.system(size: 30 * s)).foregroundColor(Color(red: 0x48 / 255, green: 0x48 / 255, blue: 0x4D / 255)),
-                 at: CGPoint(x: leftX, y: labelY))
-        if center > 0 {
+            // Etiketler: fare yüzeyi hep açık renk olduğundan sabit koyu yazı.
+            let labelY = (b.minY + 117) * s
+            ctx.draw(Text("Sol").font(.system(size: 30 * s)).foregroundColor(Color(red: 0x48 / 255, green: 0x48 / 255, blue: 0x4D / 255)),
+                     at: CGPoint(x: (b.minX + cx0) / 2 * s, y: labelY))
             ctx.draw(Text("Orta").font(.system(size: 30 * s, weight: .semibold))
                         .foregroundColor(Color(red: 0x24 / 255, green: 0x49 / 255, blue: 0xB5 / 255)),
-                     at: CGPoint(x: b.midX * s, y: labelY))
-        }
-        let rightFrom = center > 0 ? cx1 : b.midX + 40
-        ctx.draw(Text("Sağ").font(.system(size: 30 * s)).foregroundColor(Color(red: 0x8F / 255, green: 0x4A / 255, blue: 0)),
-                 at: CGPoint(x: (rightFrom + b.maxX) / 2 * s, y: labelY))
-
+                     at: CGPoint(x: (cx0 + cx1) / 2 * s, y: labelY))
+            ctx.draw(Text("Sağ").font(.system(size: 30 * s)).foregroundColor(Color(red: 0x8F / 255, green: 0x4A / 255, blue: 0)),
+                     at: CGPoint(x: (cx1 + b.maxX) / 2 * s, y: labelY))
+            ctx.draw(Text("Arka").font(.system(size: 30 * s))
+                        .foregroundColor(Color(red: 0x65 / 255, green: 0x34 / 255, blue: 0xA8 / 255)),
+                     at: CGPoint(x: b.midX * s, y: (frontBottom + (b.maxY - frontBottom) * 0.45) * s))
         }
 
         // Canlı parmaklar
@@ -141,5 +145,48 @@ struct MouseZoneMap: View {
             inner.fill(Path(ellipseIn: r), with: .color(MM.accent.opacity(0.15)))
             inner.stroke(Path(ellipseIn: r), with: .color(MM.accent), lineWidth: max(1, 3.5 * s))
         }
+    }
+
+    // MARK: Sürüklenebilir tutamaçlar
+
+    private var handles: some View {
+        let s = width / Self.vbW
+        let b = Self.body
+        let frontBottom = b.minY + b.height * CGFloat(1 - layout.frontLimit)
+        let cx0 = b.minX + b.width * CGFloat(layout.leftEdge)
+        let cx1 = b.minX + b.width * CGFloat(layout.rightEdge)
+        let midY = (b.minY + (frontBottom - b.minY) * 0.55) * s
+        return ZStack {
+            handle(vertical: true)
+                .gesture(drag { x, _ in Settings.shared.zoneLayout = Settings.shared.zoneLayout.moving(.left, to: Double((x / s - b.minX) / b.width)) })
+                .position(x: cx0 * s, y: midY)
+            handle(vertical: true)
+                .gesture(drag { x, _ in Settings.shared.zoneLayout = Settings.shared.zoneLayout.moving(.right, to: Double((x / s - b.minX) / b.width)) })
+                .position(x: cx1 * s, y: midY)
+            handle(vertical: false)
+                .gesture(drag { _, y in Settings.shared.zoneLayout = Settings.shared.zoneLayout.moving(.front, to: Double(1 - (y / s - b.minY) / b.height)) })
+                .position(x: b.midX * s, y: frontBottom * s)
+        }
+        .frame(width: width, height: height)
+    }
+
+    private func drag(_ update: @escaping (CGFloat, CGFloat) -> Void) -> some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named("zoneMap"))
+            .onChanged { update($0.location.x, $0.location.y) }
+    }
+
+    private func handle(vertical: Bool) -> some View {
+        ZStack {
+            Capsule().fill(MM.card)
+                .overlay(Capsule().strokeBorder(MM.accent, lineWidth: 1.5))
+                .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                .frame(width: vertical ? 9 : 36, height: vertical ? 36 : 9)
+        }
+        .frame(width: vertical ? 24 : 48, height: vertical ? 48 : 24)
+        .contentShape(Rectangle())
+        .onHover { inside in
+            if inside { (vertical ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).push() } else { NSCursor.pop() }
+        }
+        .accessibilityLabel(vertical ? "Bölge sınırı, sürükleyerek boyutlandır" : "Ön / arka sınırı, sürükleyerek boyutlandır")
     }
 }

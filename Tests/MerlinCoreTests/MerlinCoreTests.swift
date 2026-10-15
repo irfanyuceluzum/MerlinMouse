@@ -125,6 +125,17 @@ final class MerlinCoreTests: XCTestCase {
         XCTAssertFalse(levels(b(Trigger(kind: .swipe, fingers: 3, direction: .left))).contains(.reserved))
     }
 
+    func testRearTapNotReservedButCaution() {
+        let tapRear = levels(b(Trigger(kind: .tap, fingers: 1, zone: .rear)))
+        XCTAssertFalse(tapRear.contains(.reserved))
+        XCTAssertTrue(tapRear.contains(.caution))
+        XCTAssertTrue(levels(b(Trigger(kind: .doubleTap, fingers: 1, zone: .rear))).contains(.caution))
+        // Diğer tek parmak tap bölgeleri ayrılmış kalır.
+        for z in [Zone.any, .left, .center, .right] {
+            XCTAssertTrue(levels(b(Trigger(kind: .tap, fingers: 1, zone: z))).contains(.reserved), "\(z)")
+        }
+    }
+
     func testUnsupportedAndDuplicate() {
         XCTAssertTrue(levels(b(Trigger(kind: .hold, fingers: 2))).contains(.unsupported))
         let a = b(Trigger(kind: .press, fingers: 3))

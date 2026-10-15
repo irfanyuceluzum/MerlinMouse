@@ -479,6 +479,7 @@ struct BindingEditorView: View {
         case .left: return "Sol"
         case .center: return "Orta"
         case .right: return "Sağ"
+        case .rear: return "Arka (logo)"
         }
     }
 

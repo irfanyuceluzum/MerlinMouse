@@ -8,7 +8,7 @@ final class TriggerOptionsTests: XCTestCase {
 
     func testFingerChoices() {
         XCTAssertEqual(TriggerOptions.fingerChoices(kind: .press), [1, 2, 3, 4])
-        XCTAssertEqual(TriggerOptions.fingerChoices(kind: .tap), [2, 3, 4])
+        XCTAssertEqual(TriggerOptions.fingerChoices(kind: .tap), [1, 2, 3, 4])
         XCTAssertEqual(TriggerOptions.fingerChoices(kind: .doubleTap), [1, 2, 3, 4])
         XCTAssertEqual(TriggerOptions.fingerChoices(kind: .swipe), [3, 4])
     }
@@ -16,10 +16,12 @@ final class TriggerOptionsTests: XCTestCase {
     func testZoneChoices() {
         XCTAssertEqual(TriggerOptions.zoneChoices(kind: .press, fingers: 1, modifier: .none), [.center, .right])
         XCTAssertEqual(TriggerOptions.zoneChoices(kind: .doubleTap, fingers: 1, modifier: .none),
-                       [.any, .left, .center, .right])
+                       [.any, .left, .center, .right, .rear])
         XCTAssertTrue(TriggerOptions.zoneChoices(kind: .press, fingers: 2, modifier: .none).isEmpty)
         XCTAssertTrue(TriggerOptions.zoneChoices(kind: .press, fingers: 1, modifier: .fn).isEmpty)
-        XCTAssertTrue(TriggerOptions.zoneChoices(kind: .tap, fingers: 1, modifier: .none).isEmpty)
+        XCTAssertEqual(TriggerOptions.zoneChoices(kind: .tap, fingers: 1, modifier: .none), [.rear])
+        XCTAssertTrue(TriggerOptions.zoneChoices(kind: .tap, fingers: 2, modifier: .none).isEmpty)
+        XCTAssertFalse(TriggerOptions.zoneChoices(kind: .press, fingers: 1, modifier: .none).contains(.rear))
         XCTAssertTrue(TriggerOptions.zoneChoices(kind: .swipe, fingers: 1, modifier: .none).isEmpty)
     }
 
@@ -31,7 +33,10 @@ final class TriggerOptionsTests: XCTestCase {
     }
 
     func testSanitize() {
-        XCTAssertEqual(TriggerOptions.sanitize(Trigger(kind: .tap, fingers: 1)).fingers, 2)
+        let tap1 = TriggerOptions.sanitize(Trigger(kind: .tap, fingers: 1))
+        XCTAssertEqual(tap1.fingers, 1)
+        XCTAssertEqual(tap1.zone, .rear)
+        XCTAssertEqual(TriggerOptions.sanitize(Trigger(kind: .tap, fingers: 5)).fingers, 1)
         XCTAssertEqual(TriggerOptions.sanitize(Trigger(kind: .swipe, fingers: 2)).fingers, 3)
         let p = TriggerOptions.sanitize(Trigger(kind: .press, fingers: 1, zone: .left))
         XCTAssertEqual(p.fingers, 1)

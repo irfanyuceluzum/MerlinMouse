@@ -68,7 +68,7 @@ public enum ConflictChecker {
             out.append(Conflict(level: .reserved, title: "Kaydırma ile karışır",
                                 detail: "Bir veya iki parmakla kaydırma normal kaydırmayla karışır; en az üç parmak gerekir."))
         }
-        if t.kind == .tap, t.fingers == 1 {
+        if t.kind == .tap, t.fingers == 1, t.zone != .rear {
             out.append(Conflict(level: .reserved, title: "Fareyi tutarken kazara tetiklenir",
                                 detail: "Tek parmakla dokunma, fareyi tutarken istemeden tetiklenir."))
         }
@@ -121,6 +121,11 @@ public enum ConflictChecker {
         if env.bttRunning, t.kind == .press, t.modifier == .none, t.fingers == 2 || t.fingers == 3 {
             out.append(Conflict(level: .btt, title: "BetterTouchTool'da da atanmış olabilir",
                                 detail: "BetterTouchTool çalışıyor; aynı hareket orada da tanımlıysa iki eylem birden tetiklenebilir."))
+        }
+
+        if (t.kind == .tap || t.kind == .doubleTap), t.fingers == 1, t.zone == .rear {
+            out.append(Conflict(level: .caution, title: "Avuç değerken tetiklenmez",
+                                detail: "Avuç değerken tetiklenmez; yalnız parmaklar kalkmışken dokunun."))
         }
 
         if t.kind == .press, t.modifier == .option || t.modifier == .command || t.modifier == .shift {

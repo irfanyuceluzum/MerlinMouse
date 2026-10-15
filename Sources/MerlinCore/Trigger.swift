@@ -7,7 +7,18 @@ public enum GestureKind: String, Codable, Hashable, CaseIterable {
 
 /// Tek parmakla basılan bölge.
 public enum Zone: String, Codable, Hashable, CaseIterable {
-    case any, left, center, right
+    case any, left, center, right, rear
+
+    /// Arayüzde gösterilen ad.
+    public var displayName: String {
+        switch self {
+        case .any: return "Her yer"
+        case .left: return "Sol"
+        case .center: return "Orta"
+        case .right: return "Sağ"
+        case .rear: return "Arka (logo)"
+        }
+    }
 }
 
 /// Kaydırma yönü; "up" farenin önüne doğrudur.
@@ -87,6 +98,7 @@ public struct Trigger: Codable, Hashable {
             case .left: prefix = "Sol bölgeye"
             case .center: prefix = "Orta bölgeye"
             case .right: prefix = "Sağ bölgeye"
+            case .rear: prefix = "Arkaya"
             }
         } else {
             switch t.fingers {
