@@ -271,3 +271,29 @@ struct MMBanner: View {
         .overlay(shape.strokeBorder(warn ? MM.warnLine : MM.accentLine, lineWidth: 1))
     }
 }
+
+/// Pil rozeti: SF Symbol + yüzde; veri yoksa "Pil —".
+struct MMBatteryBadge: View {
+    let percent: Int?
+
+    var body: some View {
+        if let percent {
+            let color: Color = {
+                switch BatteryAlertPolicy.kind(percent: percent) {
+                case .normal: return MM.text2
+                case .low: return MM.warnText
+                case .critical: return .red
+                }
+            }()
+            HStack(spacing: 4) {
+                Image(systemName: BatteryAlertPolicy.symbolName(percent: percent)).font(.system(size: 12))
+                Text("%\(percent)").font(.system(size: 12, weight: .medium))
+            }
+            .foregroundStyle(color)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Pil yüzde \(percent)")
+        } else {
+            Text("Pil —").font(.system(size: 12)).foregroundStyle(MM.text2)
+        }
+    }
+}

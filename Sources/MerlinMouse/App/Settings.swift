@@ -22,6 +22,8 @@ final class Settings: ObservableObject {
     @Published var zoneLayout: ZoneLayout { didSet { saveLayout() } }
     /// Ön/arka yönü ters çevir (ayarlama için).
     @Published var flipY: Bool { didSet { save(flipY, "flipY") } }
+    /// Düşük pil (%20, %10) bildirimleri.
+    @Published var batteryAlertsEnabled: Bool { didSet { save(batteryAlertsEnabled, "batteryAlertsEnabled") } }
     /// "system", "light" veya "dark".
     @Published var appearance: String { didSet { save(appearance, "appearance"); applyAppearance() } }
 
@@ -29,7 +31,7 @@ final class Settings: ObservableObject {
         defaults.register(defaults: [
             "enabled": true, "zoneClick": true, "twoFingerClick": true, "threeFingerClick": true,
             "threeFingerTap": false, "fnDrag": true, "blockScrollWhileDragging": true, "calm3DScroll": true,
-            "zoneWidth": 0.30, "flipY": false, "appearance": "system",
+            "zoneWidth": 0.30, "flipY": false, "appearance": "system", "batteryAlertsEnabled": true,
         ])
         enabled = defaults.bool(forKey: "enabled")
         zoneClick = defaults.bool(forKey: "zoneClick")
@@ -47,6 +49,7 @@ final class Settings: ObservableObject {
             zoneLayout = ZoneLayout.fromLegacy(zoneWidth: defaults.double(forKey: "zoneWidth"))
         }
         flipY = defaults.bool(forKey: "flipY")
+        batteryAlertsEnabled = defaults.bool(forKey: "batteryAlertsEnabled")
         appearance = defaults.string(forKey: "appearance") ?? "system"
         if let until = defaults.object(forKey: "pausedUntil") as? Date, until > Date() {
             pausedUntil = until

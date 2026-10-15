@@ -7,6 +7,7 @@ struct PanelView: View {
     @ObservedObject private var model = AppModel.shared
     @ObservedObject private var s = Settings.shared
     @ObservedObject private var front = FrontApp.shared
+    @ObservedObject private var battery = BatteryMonitor.shared
     @ObservedObject private var bindingStore = BindingStore.shared
     @Environment(\.openWindow) private var openWindow
 
@@ -45,8 +46,11 @@ struct PanelView: View {
                 .overlay(Image(systemName: "magicmouse").font(.system(size: 20, weight: .medium)).foregroundStyle(MM.accentInk))
             VStack(alignment: .leading, spacing: 1) {
                 Text("Merlin Mouse").font(.system(size: 14, weight: .semibold)).foregroundStyle(MM.text)
-                Text(model.miceCount > 0 ? "Magic Mouse bağlı" : "Magic Mouse bulunamadı")
-                    .font(.system(size: 12)).foregroundStyle(MM.text2)
+                HStack(spacing: 8) {
+                    Text(model.miceCount > 0 ? "Magic Mouse bağlı" : "Magic Mouse bulunamadı")
+                        .font(.system(size: 12)).foregroundStyle(MM.text2)
+                    if model.miceCount > 0 { MMBatteryBadge(percent: battery.percent) }
+                }
             }
             Spacer()
             MMSwitch(isOn: $s.enabled, label: "Merlin Mouse")

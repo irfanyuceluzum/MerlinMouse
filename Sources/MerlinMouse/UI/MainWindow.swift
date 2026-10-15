@@ -28,6 +28,7 @@ struct MainWindow: View {
 
     @State private var page: Page = .gestures
     @ObservedObject private var system = SystemGestureState.shared
+    @ObservedObject private var battery = BatteryMonitor.shared
     @ObservedObject private var front = FrontApp.shared
     @ObservedObject private var store = BindingStore.shared
     @ObservedObject private var model = AppModel.shared
@@ -111,6 +112,10 @@ struct MainWindow: View {
             }
             if profile != nil {
                 Text("Öndeki uygulamadan algılandı").font(.system(size: 12)).foregroundStyle(MM.text2)
+            }
+            HStack(spacing: 6) {
+                Text("Magic Mouse").font(.system(size: 12)).foregroundStyle(MM.text2)
+                MMBatteryBadge(percent: battery.percent)
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 12)

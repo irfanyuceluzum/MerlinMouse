@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct GeneralPage: View {
     @ObservedObject private var s = Settings.shared
     @ObservedObject private var model = AppModel.shared
+    @ObservedObject private var battery = BatteryMonitor.shared
     @State private var imageError: String?
 
     var body: some View {
@@ -65,6 +66,16 @@ struct GeneralPage: View {
                     row("Magic Mouse", model.deviceInfo.isEmpty ? "Magic Mouse bulunamadı" : model.deviceInfo) {
                         MMSecondaryButton("Fareyi yeniden tara", "arrow.clockwise") { model.startTouches() }
                     }
+                    MMDivider()
+                    row("Pil", battery.lastRead.map { "Son okuma \(Self.timeFormatter.string(from: $0))" }) {
+                        HStack(spacing: 12) {
+                            MMBatteryBadge(percent: battery.percent)
+                            MMSecondaryButton("Pili şimdi oku") { battery.refresh() }
+                        }
+                    }
+                    MMDivider()
+                    MMSwitchRow(title: "Düşük pil bildirimleri",
+                                subtitle: "Pil %20 ve %10'a düşünce bildirim gönderir.", isOn: $s.batteryAlertsEnabled)
                 }
                 card("Uygulama") {
                     row("Kayıt dosyası", "~/Library/Logs/MerlinMouse.log") {
@@ -83,6 +94,12 @@ struct GeneralPage: View {
             .padding(.horizontal, 32).padding(.vertical, 28)
         }
     }
+
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
 
     private var version: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"

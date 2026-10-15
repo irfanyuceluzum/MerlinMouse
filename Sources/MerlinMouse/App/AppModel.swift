@@ -53,6 +53,7 @@ final class AppModel: ObservableObject {
         }
 
         startTouches()
+        BatteryMonitor.shared.start()
         checkTrust(prompt: true)
         refreshWarnings()
 
@@ -61,6 +62,7 @@ final class AppModel: ObservableObject {
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             self?.scheduleRestart(after: 1.5)
+            BatteryMonitor.shared.refresh()
             // Bluetooth geç toparlanabilir: 5 sn sonra bir kez daha dene.
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.startTouches() }
         }
@@ -126,6 +128,7 @@ final class AppModel: ObservableObject {
             Log.write("Aygıt değişikliği algılandı")
         }
         scheduleRestart(after: 1.5)
+        BatteryMonitor.shared.refresh()
     }
 
     func startTouches() {
