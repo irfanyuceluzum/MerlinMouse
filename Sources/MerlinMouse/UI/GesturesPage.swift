@@ -58,13 +58,13 @@ struct GesturesPage: View {
                 MouseZoneMap(touches: model.liveTouches, layout: s.zoneLayout, editable: true, flipped: s.flipY,
                              image: model.mouseImage, secondaryRightZone: twoButton, width: 150)
                     .frame(maxWidth: .infinity)
-                HStack(alignment: .center, spacing: 8) {
+                VStack(alignment: .leading, spacing: 8) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(LF("Sol %lld · Orta %lld · Sağ %lld", pct(s.zoneLayout.leftWidth), pct(s.zoneLayout.centerWidth), pct(s.zoneLayout.rightWidth)))
                         Text(LF("Arka %lld · Orta yükseklik %lld (yüzde)", pct(s.zoneLayout.frontLimit), pct(s.zoneLayout.centerHeight))).foregroundStyle(MM.text2)
                     }
                     .font(.system(size: 11.5, design: .monospaced)).foregroundStyle(MM.text)
-                    Spacer(minLength: 0)
+                    .lineLimit(1).minimumScaleFactor(0.8)
                     Button { s.resetZoneLayout() } label: {
                         Text(L("Varsayılana dön")).font(.system(size: 12))
                             .foregroundStyle(MM.text)

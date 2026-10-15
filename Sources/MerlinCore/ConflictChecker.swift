@@ -85,6 +85,16 @@ public enum ConflictChecker {
             out.append(Conflict(level: .unsupported, title: MerlinText.t("Basılı tut henüz desteklenmiyor"),
                                 detail: MerlinText.t("Bu tetik şimdilik çalışmaz.")))
         }
+        // Çimdikleme ile yakınlaştırma yalnız birbirine atanır (Magic Mouse'ta macOS çimdiklemesi yok).
+        // Eşleştirme yöntemden ve düzenleyiciden bağımsız: her `.zoom(style:modifiers:)` yakınlaştırmadır.
+        if t.kind == .pinch, !binding.action.isZoom {
+            out.append(Conflict(level: .unsupported, title: MerlinText.t("Çimdikleme yalnız yakınlaştırmaya"),
+                                detail: MerlinText.t("Çimdikleme yalnız yakınlaştırma eylemine atanabilir.")))
+        }
+        if t.kind != .pinch, binding.action.isZoom {
+            out.append(Conflict(level: .unsupported, title: MerlinText.t("Yakınlaştırma yalnız çimdiklemeyle"),
+                                detail: MerlinText.t("Yakınlaştırma eylemi yalnız çimdiklemeyle kullanılır.")))
+        }
 
         let dup = among.first {
             $0.id != binding.id && $0.enabled && $0.appBundleID == binding.appBundleID && $0.trigger.normalized == t

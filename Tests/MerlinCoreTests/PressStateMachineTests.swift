@@ -6,6 +6,26 @@ final class PressStateMachineTests: XCTestCase {
         GestureBinding(trigger: Trigger(kind: .press, fingers: 1, zone: .center), action: action)
     }
 
+    func testDryRunDownPassesAndOpensNoSession() {
+        var m = PressStateMachine()
+        let r = m.mouseDown(.left, binding: binding(.middleClick), dryRun: true)
+        XCTAssertEqual(r.0, .pass)
+        XCTAssertNil(r.runAction)
+        XCTAssertFalse(m.isMiddleDragActive)
+        XCTAssertEqual(m.mouseDragged(.left), .pass)
+        XCTAssertEqual(m.mouseUp(.left), .pass)
+    }
+
+    func testOpenSessionSurvivesDryRun() {
+        var m = PressStateMachine()
+        _ = m.mouseDown(.left, binding: binding(.middleClick))
+        // Kuru deneme açılınca gelen yeni basış oturumu bozmaz.
+        XCTAssertEqual(m.mouseDown(.right, binding: binding(.middleClick), dryRun: true).0, .pass)
+        XCTAssertEqual(m.mouseDragged(.left), .convert(buttonNumber: 2))
+        XCTAssertEqual(m.mouseUp(.left), .convert(buttonNumber: 2))
+        XCTAssertFalse(m.isMiddleDragActive)
+    }
+
     func testDownWithoutBindingPasses() {
         var m = PressStateMachine()
         let r = m.mouseDown(.left, binding: nil)

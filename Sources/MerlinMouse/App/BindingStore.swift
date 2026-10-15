@@ -49,6 +49,13 @@ final class BindingStore: ObservableObject {
             file.save(loaded)
             Log.write("Temel hareketler işaretlendi: \(n)")
         }
+        // Sonradan eklenen temel çimdikleme (yeni kurulumda da buradan gelir).
+        let withPinch = BindingMigrations.addMissingPinch(loaded.bindings)
+        if withPinch.count != loaded.bindings.count {
+            loaded.bindings = withPinch
+            file.save(loaded)
+            Log.write("Temel çimdikleme ataması eklendi")
+        }
         // Açık eşi olan gereksiz kapalı kopyaları temizle.
         let deduped = BindingMigrations.collapseRedundantDisabledCopies(loaded.bindings)
         if deduped.count != loaded.bindings.count {
@@ -107,6 +114,20 @@ final class BindingStore: ObservableObject {
     func resetToDefault(id: UUID) {
         guard let b = set.bindings.first(where: { $0.id == id }), b.isBuiltIn else { return }
         upsert(DefaultBindings.resetToDefault(b))
+    }
+
+    /// Yedekten geri yükleme: tüm kümeyi değiştirir (çözülemeyen öğeler korunur) ve kaydeder.
+    func replaceAll(_ next: BindingSet) {
+        var restored = next
+        restored.bindings = BindingMigrations.tagBuiltIns(restored.bindings)
+        apply(restored)
+    }
+
+    /// Hazır profili tek seferde ekler ve kaydeder; mevcut atamalar değişmez (AppPresets.apply).
+    func applyPreset(_ preset: AppPreset, bundleID: String, appName: String) -> (added: Int, skipped: Int) {
+        let r = AppPresets.apply(preset, bundleID: bundleID, appName: appName, to: set)
+        if r.set != set { apply(r.set) }
+        return (r.added, r.skipped)
     }
 
     private func apply(_ next: BindingSet) {

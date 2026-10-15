@@ -20,12 +20,17 @@ final class TouchMonitor {
     var onFrame: (([Touch]) -> Void)?
     /// Tanınan hareketler ana kuyrukta gelir.
     var onGesture: (([RecognizedGesture]) -> Void)?
+    /// Çimdikleme olayları ana kuyrukta gelir.
+    var onPinch: (([PinchEvent]) -> Void)?
 
     private let lock = NSLock()
     private let flushQueue = DispatchQueue(label: "dev.merlinmouse.gesture-flush")
     private var current: [Touch] = []
     private var lastUIUpdate: Double = 0
     private var recognizer = GestureRecognizer()
+    private var pinch = PinchRecognizer()
+    /// Öndeki uygulama için açık bir çimdikleme ataması var mı; yoksa yalnız `.ended` iletilir.
+    private var wantsPinch = false
 
     var touches: [Touch] {
         lock.lock(); defer { lock.unlock() }
@@ -45,14 +50,22 @@ final class TouchMonitor {
 
     /// Fiziksel tıklama olduğunda olay yakalayıcı çağırır; açık oturum hareket üretmez.
     func noteClick() {
-        lock.lock(); recognizer.noteClick(); lock.unlock()
+        lock.lock()
+        recognizer.noteClick()
+        let pinchEvents = pinch.noteClick()
+        lock.unlock()
+        if !pinchEvents.isEmpty { DispatchQueue.main.async { self.onPinch?(pinchEvents) } }
     }
 
-    /// Bölge düzeni (ön/arka sınırı dahil) ve çift dokunma sorgusu tanıyıcıya verilir.
-    func configure(layout: ZoneLayout, wantsDoubleTap: @escaping (Int, Zone) -> Bool) {
+    /// Bölge düzeni (ön/arka sınırı dahil), çimdikleme adımı ve çift dokunma sorgusu tanıyıcılara verilir.
+    func configure(layout: ZoneLayout, pinchStep: Double, wantsPinch: Bool,
+                   wantsDoubleTap: @escaping (Int, Zone) -> Bool) {
         lock.lock()
         recognizer.layout = layout
         recognizer.wantsDoubleTap = wantsDoubleTap
+        pinch.layout = layout
+        pinch.step = Float(pinchStep)
+        self.wantsPinch = wantsPinch
         lock.unlock()
     }
 
@@ -65,7 +78,13 @@ final class TouchMonitor {
 
         lock.lock()
         current = active
-        let gestures = recognizer.process(TouchFrame(touches: points, timestamp: timestamp))
+        let frame = TouchFrame(touches: points, timestamp: timestamp)
+        let gestures = recognizer.process(frame)
+        var pinchEvents = pinch.process(frame)
+        // Ataması yoksa yalnız bitiş iletilir (yakınlaştırma durumu takılı kalmasın).
+        if !wantsPinch { pinchEvents = pinchEvents.filter { $0 == .ended } }
+        // Çimdikleme başladıysa açık dokunma / kaydırma oturumu hareket üretmez.
+        if pinchEvents.contains(.began) { recognizer.noteClick() }
         let deadline = recognizer.pendingDeadline
         let sendUI = timestamp - lastUIUpdate > 0.05 || active.isEmpty
         if sendUI { lastUIUpdate = timestamp }
@@ -77,6 +96,7 @@ final class TouchMonitor {
             }
         }
         if !gestures.isEmpty { DispatchQueue.main.async { self.onGesture?(gestures) } }
+        if !pinchEvents.isEmpty { DispatchQueue.main.async { self.onPinch?(pinchEvents) } }
         if sendUI { DispatchQueue.main.async { self.onFrame?(active) } }
     }
 

@@ -48,4 +48,38 @@ final class BindingMigrationsTests: XCTestCase {
         let diff = b(3, .back, enabled: false)
         XCTAssertEqual(BindingMigrations.collapseRedundantDisabledCopies([built, diff]).count, 2)
     }
+
+    func testAddMissingPinchOnce() {
+        let empty = BindingMigrations.addMissingPinch([])
+        XCTAssertEqual(empty.count, 1)
+        XCTAssertEqual(empty[0].builtInKey, "pinch")
+        XCTAssertEqual(empty[0].trigger, Trigger(kind: .pinch, fingers: 2).normalized)
+        XCTAssertEqual(empty[0].action, .zoom(style: .gesture, modifiers: []))
+        XCTAssertTrue(empty[0].enabled)
+        XCTAssertNil(empty[0].appBundleID)
+
+        let old = DefaultBindings.from(legacy: LegacyFlags(zoneClick: true, twoFingerClick: true,
+                                                           threeFingerClick: true, threeFingerTap: false, fnDrag: true))
+        let once = BindingMigrations.addMissingPinch(old)
+        XCTAssertEqual(once.count, old.count + 1)
+        XCTAssertEqual(once.filter { $0.builtInKey == "pinch" }.count, 1)
+        XCTAssertEqual(BindingMigrations.addMissingPinch(once), once)
+    }
+
+    func testAddMissingPinchKeepsUserChoice() {
+        // Kullanıcının kapattığı temel pinch aynen kalır.
+        let off = GestureBinding(trigger: Trigger(kind: .pinch, fingers: 2), action: .zoom(style: .gesture, modifiers: []),
+                                 enabled: false, builtInKey: "pinch")
+        XCTAssertEqual(BindingMigrations.addMissingPinch([off]), [off])
+        // Anahtarsız pinch ataması: tagBuiltIns işaretler, ekleme yapılmaz.
+        let plain = GestureBinding(trigger: Trigger(kind: .pinch, fingers: 2), action: .zoom(style: .gesture, modifiers: []))
+        let tagged = BindingMigrations.addMissingPinch(BindingMigrations.tagBuiltIns([plain]))
+        XCTAssertEqual(tagged.count, 1)
+        XCTAssertEqual(tagged[0].builtInKey, "pinch")
+        XCTAssertEqual(BindingMigrations.addMissingPinch([plain]), [plain])
+        // Yalnız uygulamaya özel pinch varsa genel temel eklenir.
+        let app = GestureBinding(trigger: Trigger(kind: .pinch, fingers: 2), action: .zoom(style: .wheel, modifiers: []),
+                                 appBundleID: "com.x")
+        XCTAssertEqual(BindingMigrations.addMissingPinch([app]).count, 2)
+    }
 }

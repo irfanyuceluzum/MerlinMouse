@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import MerlinCore
 
 @main
 struct MerlinMouseApp: App {
@@ -43,12 +44,23 @@ struct MenuBarLabel: View {
     @Environment(\.openWindow) private var openWindow
     @ObservedObject private var model = AppModel.shared
     @ObservedObject private var settings = Settings.shared
+    @ObservedObject private var battery = BatteryMonitor.shared
 
     var body: some View {
-        // Duraklatılmış ya da kapalıyken soluk, çizgili simge.
-        let idle = !settings.enabled || model.isPaused
-        Image(systemName: idle ? "pause.circle" : "magicmouse")
-            .opacity(idle ? 0.5 : 1)
+        let state = MenuBarIconState.resolve(enabled: settings.enabled, paused: model.isPaused,
+                                             trusted: model.trusted, batteryPercent: battery.percent)
+        Image(systemName: state.symbolName)
+            .opacity(state == .disabled ? 0.4 : 1)
+            .help(state.help)
+            .onAppear {
+                // İlk açılışta ana pencere (rehberle birlikte) kendiliğinden açılır.
+                if !Settings.shared.onboardingCompleted {
+                    DispatchQueue.main.async {
+                        openWindow(id: "main")
+                        NSApp.activate(ignoringOtherApps: true)
+                    }
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: .merlinOpenMain)) { _ in
                 openWindow(id: "main")
                 NSApp.activate(ignoringOtherApps: true)
@@ -59,6 +71,11 @@ struct MenuBarLabel: View {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppModel.shared.start()
+    }
+
+    /// Çimdikleme sürerken çıkılırsa açık büyütme hareketi "bitti" ile kapanır.
+    func applicationWillTerminate(_ notification: Notification) {
+        GestureDispatcher.endPinchSession()
     }
 
     /// Finder / Spotlight'tan yeniden açılınca ana pencereyi göster.

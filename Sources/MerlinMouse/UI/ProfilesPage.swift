@@ -11,6 +11,8 @@ struct ProfilesPage: View {
     @State private var selection: String?
     @State private var adding = false
     @State private var removing = false
+    /// Açık hazır profil sayfası.
+    @State private var presetChoice: AppPreset?
 
     /// Profil listesi ∪ kapsamlı ataması olan uygulamalar.
     private var apps: [AppChoice] {
@@ -89,6 +91,9 @@ struct ProfilesPage: View {
             }
             addMenu
         }
+        .sheet(item: $presetChoice) { p in
+            PresetSheet(preset: p) { id in selection = id }
+        }
         .padding(.horizontal, 12).padding(.vertical, 20)
         .frame(width: 230).frame(maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .trailing) { Rectangle().fill(MM.line).frame(width: 1) }
@@ -103,6 +108,12 @@ struct ProfilesPage: View {
             Divider()
             Button(L("Diğer uygulama…")) {
                 if let p = AppPicker.pickApp(), let id = p.bundleID { add(AppChoice(id: id, name: p.name)) }
+            }
+            Divider()
+            Section(L("Hazır profiller")) {
+                ForEach(AppPresets.all) { p in
+                    Button(p.name) { presetChoice = p }
+                }
             }
         } label: {
             HStack(spacing: 8) {

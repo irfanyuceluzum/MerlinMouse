@@ -3,6 +3,8 @@ import Foundation
 /// Hareketin türü.
 public enum GestureKind: String, Codable, Hashable, CaseIterable {
     case press, hold, tap, doubleTap, swipe
+    /// İki parmakla çimdikleme (her zaman 2 parmak, bölgesiz).
+    case pinch
 }
 
 /// Tek parmakla basılan bölge.
@@ -54,6 +56,13 @@ public struct Trigger: Codable, Hashable {
     /// Anlamsız alanları sabit değere çeker; eşleştirme bu biçimle yapılır.
     public var normalized: Trigger {
         var t = self
+        if t.kind == .pinch {
+            t.fingers = 2
+            t.zone = .any
+            t.direction = .up
+            t.modifier = .none
+            return t
+        }
         if t.kind != .swipe { t.direction = .up }
         if t.fingers != 1 { t.zone = .any }
         if t.kind != .press && t.kind != .hold { t.modifier = .none }
@@ -109,6 +118,7 @@ public struct Trigger: Codable, Hashable {
             case .left: return MerlinText.f("%@ sola kaydır", phrase)
             case .right: return MerlinText.f("%@ sağa kaydır", phrase)
             }
+        case .pinch: return MerlinText.t("İki parmakla çimdikle")
         }
     }
 }

@@ -37,6 +37,11 @@ enum AppPicker {
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
         panel.prompt = L("Seç")
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
+        return app(at: url)
+    }
+
+    /// Paket yolundan ad ve kimlik (kimlik okunamazsa nil).
+    static func app(at url: URL) -> PickedApp {
         let bundle = Bundle(url: url)
         let name = (bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String)
             ?? url.deletingPathExtension().lastPathComponent
@@ -69,11 +74,19 @@ enum ShortcutsCLI {
 }
 
 private enum EditorActionKind: String, CaseIterable, Identifiable {
-    case middle, back, forward, shortcut, system, openApp, runShortcut
+    case middle, middleDrag, back, forward, shortcut, system, openApp, runShortcut, zoom
     var id: String { rawValue }
+
+    /// Tetik türüne göre sunulan eylemler: çimdiklemede yalnız yakınlaştırma, diğerlerinde o hariç hepsi.
+    static func choices(for kind: GestureKind) -> [EditorActionKind] {
+        kind == .pinch ? [.zoom] : allCases.filter { $0 != .zoom }
+    }
+
     var title: String {
         switch self {
         case .middle: return L("Orta tıklama")
+        case .middleDrag: return L("Düzenleyicili orta tuş")
+        case .zoom: return L("Yakınlaştır / uzaklaştır")
         case .back: return L("Geri")
         case .forward: return L("İleri")
         case .shortcut: return L("Klavye kısayolu")
@@ -104,6 +117,12 @@ struct BindingEditorView: View {
     @State private var appPath: String
     @State private var appName: String
     @State private var shortcutName: String
+    /// Düzenleyicili orta tuşun tuşları (⌃⌥⇧⌘ sırasıyla).
+    @State private var dragMods: [String]
+    /// Yakınlaştırma yöntemi (varsayılan trackpad hareketi).
+    @State private var zoomStyle: ZoomStyle
+    /// Yakınlaştırmada tekerlekle birlikte tutulan isteğe bağlı tuşlar (yalnız `wheel`; varsayılan hiçbiri).
+    @State private var zoomMods: [String]
     @State private var scope: AppChoice?
     @State private var shortcutList: [String] = []
     @State private var env = AppModel.shared.conflictEnvironment()
@@ -133,8 +152,13 @@ struct BindingEditorView: View {
         var c = KeyCombo(keyCode: 0, modifiers: [], display: "")
         var s = SystemAction.missionControl
         var path = "", name = "", sc = ""
+        var mods = ["shift"]
+        var zMods: [String] = []
+        var zStyle = ZoomStyle.gesture
         switch existing?.action ?? .middleClick {
         case .middleClick: k = .middle
+        case .middleDrag(let m): k = .middleDrag; mods = GestureAction.normalizedModifiers(m)
+        case .zoom(let st, let m): k = .zoom; zStyle = st; zMods = GestureAction.zoomModifiers(m, style: st)
         case .back: k = .back
         case .forward: k = .forward
         case .shortcut(let combo): k = .shortcut; c = combo
@@ -143,6 +167,9 @@ struct BindingEditorView: View {
         case .runShortcut(let n): k = .runShortcut; sc = n
         }
         _kind = State(initialValue: k)
+        _dragMods = State(initialValue: mods)
+        _zoomStyle = State(initialValue: zStyle)
+        _zoomMods = State(initialValue: zMods)
         _combo = State(initialValue: c)
         _sysAction = State(initialValue: s)
         _appPath = State(initialValue: path)
@@ -154,6 +181,8 @@ struct BindingEditorView: View {
     private var action: GestureAction {
         switch kind {
         case .middle: return .middleClick
+        case .middleDrag: return .middleDrag(modifiers: GestureAction.normalizedModifiers(dragMods))
+        case .zoom: return .zoom(style: zoomStyle, modifiers: GestureAction.zoomModifiers(zoomMods, style: zoomStyle))
         case .back: return .back
         case .forward: return .forward
         case .shortcut: return .shortcut(combo)
@@ -209,8 +238,13 @@ struct BindingEditorView: View {
     }
 
     private func loadAction(_ a: GestureAction) {
+        // Yakınlaştırma dışındaki eylemlerde yöntem varsayılana döner.
+        zoomStyle = .gesture
+        zoomMods = []
         switch a {
         case .middleClick: kind = .middle
+        case .middleDrag(let m): kind = .middleDrag; dragMods = GestureAction.normalizedModifiers(m)
+        case .zoom(let st, let m): kind = .zoom; zoomStyle = st; zoomMods = GestureAction.zoomModifiers(m, style: st)
         case .back: kind = .back
         case .forward: kind = .forward
         case .shortcut(let c): kind = .shortcut; combo = c
@@ -327,6 +361,17 @@ struct BindingEditorView: View {
         .frame(width: 820, height: 700)
         .background(MM.card)
         .onAppear { env = AppModel.shared.conflictEnvironment() }
+        // Çimdikleme yalnız yakınlaştırmaya atanır; türden çıkınca eylem orta tıklamaya döner.
+        .onChange(of: trigger.kind) { _, newKind in
+            if newKind == .pinch {
+                kind = .zoom
+            } else if kind == .zoom {
+                kind = .middle
+            }
+        }
+        .onChange(of: kind) { _, newKind in
+            if newKind == .middleDrag, dragMods.isEmpty { dragMods = ["shift"] }
+        }
         .confirmationDialog(L("Temel hareketi değiştir?"), isPresented: $confirmChange) {
             Button(L("Değiştir")) { commit() }
             Button(L("Vazgeç"), role: .cancel) {}
@@ -557,7 +602,8 @@ struct BindingEditorView: View {
         Picker(L("Hareket türü"), selection: field(\.kind)) {
             ForEach(TriggerOptions.editableKinds, id: \.self) { Text(Self.kindName($0)).tag($0) }
         }
-        if trigger.modifier == .none {
+        // Çimdikleme her zaman iki parmak, bölgesiz ve tuşsuzdur; seçici gösterilmez.
+        if trigger.modifier == .none, trigger.kind != .pinch {
             Picker(L("Parmak"), selection: field(\.fingers)) {
                 ForEach(TriggerOptions.fingerChoices(kind: trigger.kind), id: \.self) { Text("\($0)").tag($0) }
             }
@@ -589,6 +635,7 @@ struct BindingEditorView: View {
         case .tap: return L("Dokun")
         case .doubleTap: return L("Çift dokun")
         case .swipe: return L("Kaydır")
+        case .pinch: return L("Çimdikle")
         case .hold: return L("Basılı tut")
         }
     }
@@ -626,9 +673,30 @@ struct BindingEditorView: View {
 
     @ViewBuilder private var actionFields: some View {
         Picker(L("Eylem"), selection: $kind) {
-            ForEach(EditorActionKind.allCases) { Text($0.title).tag($0) }
+            ForEach(EditorActionKind.choices(for: trigger.kind)) { Text($0.title).tag($0) }
         }
         switch kind {
+        case .middleDrag:
+            LabeledContent(L("Düzenleyici tuşlar")) {
+                HStack(spacing: 6) {
+                    ForEach(GestureAction.middleDragModifierOrder, id: \.self) { modifierChip($0, in: $dragMods) }
+                }
+            }
+        case .zoom:
+            Picker(L("Yöntem"), selection: $zoomStyle) {
+                ForEach(ZoomStyle.allCases, id: \.self) { Text(Self.zoomStyleName($0)).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            Text(Self.zoomStyleHint(zoomStyle))
+                .font(.system(size: 12)).foregroundStyle(MM.text2)
+                .fixedSize(horizontal: false, vertical: true)
+            if zoomStyle == .wheel {
+                LabeledContent(L("Tekerlekle birlikte tut (isteğe bağlı)")) {
+                    HStack(spacing: 6) {
+                        ForEach(GestureAction.middleDragModifierOrder, id: \.self) { modifierChip($0, in: $zoomMods) }
+                    }
+                }
+            }
         case .shortcut:
             LabeledContent(L("Kısayol")) { ShortcutRecorder(combo: $combo) }
         case .system:
@@ -654,6 +722,49 @@ struct BindingEditorView: View {
         default:
             EmptyView()
         }
+    }
+
+    private static func zoomStyleName(_ s: ZoomStyle) -> String {
+        switch s {
+        case .gesture: return L("Trackpad hareketi")
+        case .wheel: return L("Fare tekerleği")
+        case .keys: return L("Klavye (⌘+ / ⌘−)")
+        }
+    }
+
+    private static func zoomStyleHint(_ s: ZoomStyle) -> String {
+        switch s {
+        case .gesture: return L("Trackpad'deki gibi yalnız içeriği büyütür (Önizleme, Safari, Haritalar, Blender…).")
+        case .wheel: return L("3D programlarda tekerlekle yakınlaştırır; gerekirse bir tuşla birlikte.")
+        case .keys: return L("Uygulamanın kendi ⌘+ / ⌘− komutunu kullanır; tarayıcıda bütün sayfayı büyütür.")
+        }
+    }
+
+    /// Düzenleyici tuş aç/kapa çipi (⌃ ⌥ ⇧ ⌘); orta tuş ve yakınlaştırma ortak kullanır.
+    private func modifierChip(_ name: String, in mods: Binding<[String]>) -> some View {
+        let on = mods.wrappedValue.contains(name)
+        let shape = Capsule()
+        let label: String
+        switch name {
+        case "control": label = "⌃ Control"
+        case "option": label = "⌥ Option"
+        case "shift": label = "⇧ Shift"
+        default: label = "⌘ Command"
+        }
+        return Button {
+            var next = mods.wrappedValue
+            if on { next.removeAll { $0 == name } } else { next.append(name) }
+            mods.wrappedValue = GestureAction.normalizedModifiers(next)
+        } label: {
+            Text(label).font(.system(size: 12.5, weight: on ? .semibold : .regular))
+                .foregroundStyle(on ? MM.accentText : MM.text)
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(on ? MM.accentSoft : MM.card, in: shape)
+                .overlay(shape.strokeBorder(on ? MM.accent : MM.line, lineWidth: on ? 1.5 : 1))
+                .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     // MARK: Kapsam

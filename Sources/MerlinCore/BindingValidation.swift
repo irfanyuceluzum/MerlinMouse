@@ -15,6 +15,8 @@ public enum BindingValidation {
             if path.isEmpty { missing = MerlinText.t("Uygulama seçilmedi") }
         case .runShortcut(let name):
             if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { missing = MerlinText.t("Kestirme adı boş") }
+        case .middleDrag(let mods):
+            if GestureAction.normalizedModifiers(mods).isEmpty { missing = MerlinText.t("Düzenleyici tuş seçilmedi") }
         default:
             break
         }

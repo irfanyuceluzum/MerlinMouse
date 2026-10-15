@@ -7,7 +7,10 @@ struct GeneralPage: View {
     @ObservedObject private var s = Settings.shared
     @ObservedObject private var model = AppModel.shared
     @ObservedObject private var battery = BatteryMonitor.shared
+    @ObservedObject private var login = LoginItem.shared
     @State private var imageError: String?
+    @State private var backupResult: (ok: Bool, text: String)?
+    @State private var cloudBackups: [BackupManager.ICloudBackup] = []
 
     var body: some View {
         ScrollView {
@@ -19,6 +22,29 @@ struct GeneralPage: View {
                 }
                 card(verbatim: "Merlin Mouse") {
                     MMSwitchRow(title: L("Etkin"), subtitle: L("Kapalıyken hiçbir hareket dönüştürülmez"), isOn: $s.enabled)
+                    MMDivider()
+                    MMSwitchRow(title: L("Girişte başlat"),
+                                subtitle: L("Mac açıldığında Merlin Mouse kendiliğinden çalışır."),
+                                isOn: Binding(get: { login.isEnabled }, set: { login.set($0) }))
+                    if login.needsApproval {
+                        HStack(spacing: 10) {
+                            Text(L("Sistem Ayarları › Genel › Giriş Öğeleri'nde Merlin Mouse'a izin ver."))
+                                .font(.system(size: 12)).foregroundStyle(MM.warnText)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 8)
+                            MMSecondaryButton(L("Ayarları aç")) { login.openSystemSettings() }
+                        }
+                        .padding(.horizontal, 20).padding(.bottom, 12)
+                    }
+                    if let err = login.errorText {
+                        Text(err).font(.system(size: 12)).foregroundStyle(MM.warnText)
+                            .padding(.horizontal, 20).padding(.bottom, 12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    MMDivider()
+                    row(L("Karşılama rehberi"), L("İzin, fare tanıma ve ilk hareket için 3 adımlı rehber.")) {
+                        MMSecondaryButton(L("Karşılama rehberini göster")) { model.showOnboarding = true }
+                    }
                     MMDivider()
                     row(L("Görünüm"), L("Sistem, gündüz ya da gece")) {
                         Picker(L("Görünüm"), selection: $s.appearance) {
@@ -86,6 +112,43 @@ struct GeneralPage: View {
                     MMSwitchRow(title: L("Düşük pil bildirimleri"),
                                 subtitle: L("Pil %20 ve %10'a düşünce bildirim gönderir."), isOn: $s.batteryAlertsEnabled)
                 }
+                card(L("Yedek")) {
+                    if let r = backupResult {
+                        MMBanner(kind: r.ok ? .info : .warning, title: r.text, actionTitle: L("Tamam")) {
+                            backupResult = nil
+                        }
+                        .padding(.horizontal, 14).padding(.top, 12)
+                    }
+                    row(L("Dosya"), L("Atamalar ve ayarlar bir dosyaya yazılır. Fare görseli yedeğe girmez.")) {
+                        HStack(spacing: 10) {
+                            MMSecondaryButton(L("Dosyaya yedekle…")) { exportToFile() }
+                            MMSecondaryButton(L("Dosyadan geri yükle…")) { importFromFile() }
+                        }
+                    }
+                    MMDivider()
+                    row("iCloud Drive", BackupManager.iCloudAvailable
+                        ? L("Yedekler iCloud Drive'daki 'Merlin Mouse' klasörüne yazılır ve diğer Mac'lerine eşitlenir.")
+                        : L("iCloud Drive kapalı")) {
+                        HStack(spacing: 10) {
+                            MMSecondaryButton(L("iCloud Drive'a yedekle")) { exportToICloud() }
+                                .disabled(!BackupManager.iCloudAvailable)
+                            Menu(L("iCloud Drive'dan geri yükle")) {
+                                if cloudBackups.isEmpty {
+                                    Text(L("Yedek bulunamadı"))
+                                } else {
+                                    ForEach(cloudBackups) { b in
+                                        Button("\(b.name) · \(Self.dateFormatter.string(from: b.date))") {
+                                            restore(from: b.url)
+                                        }
+                                    }
+                                }
+                            }
+                            .menuStyle(.button).fixedSize()
+                            .disabled(!BackupManager.iCloudAvailable)
+                            .onAppear { cloudBackups = BackupManager.latestICloudBackups() }
+                        }
+                    }
+                }
                 card(L("Uygulama")) {
                     row(L("Kayıt dosyası"), "~/Library/Logs/MerlinMouse.log") {
                         MMSecondaryButton(L("Kayıt dosyasını Finder'da göster")) {
@@ -102,6 +165,7 @@ struct GeneralPage: View {
             }
             .padding(.horizontal, 32).padding(.vertical, 28)
         }
+        .onAppear { login.refresh() }
     }
 
     private static let timeFormatter: DateFormatter = {
@@ -109,6 +173,61 @@ struct GeneralPage: View {
         f.dateFormat = "HH:mm"
         return f
     }()
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .short
+        return f
+    }()
+
+    private func exportToFile() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: BackupManager.fileExtension) ?? .json]
+        panel.nameFieldStringValue = BackupManager.defaultFileName()
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try BackupManager.exportTo(url: url)
+            backupResult = (true, LF("Yedek yazıldı: %@", url.lastPathComponent))
+        } catch {
+            backupResult = (false, error.localizedDescription)
+        }
+    }
+
+    private func importFromFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: BackupManager.fileExtension) ?? .json]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        restore(from: url)
+    }
+
+    private func exportToICloud() {
+        do {
+            let url = try BackupManager.exportToICloud()
+            cloudBackups = BackupManager.latestICloudBackups()
+            backupResult = (true, LF("iCloud Drive'a yazıldı: %@", url.lastPathComponent))
+        } catch {
+            backupResult = (false, error.localizedDescription)
+        }
+    }
+
+    /// Onay alır, sonra geri yükler; önceki hâl BackupManager tarafından otomatik yedeklenir.
+    private func restore(from url: URL) {
+        let alert = NSAlert()
+        alert.messageText = L("Geri yüklensin mi?")
+        alert.informativeText = L("Geçerli atamalar ve ayarlar değiştirilecek. Önceki hâl otomatik yedeklenir.")
+        alert.addButton(withTitle: L("Geri yükle"))
+        alert.addButton(withTitle: L("Vazgeç"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            try BackupManager.importFrom(url: url)
+            backupResult = (true, L("Yedek geri yüklendi."))
+        } catch {
+            backupResult = (false, error.localizedDescription)
+        }
+    }
 
     private var version: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"

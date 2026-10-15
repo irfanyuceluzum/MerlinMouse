@@ -4,11 +4,12 @@ import MerlinCore
 /// Ayarların düzenlendiği ana pencere.
 struct MainWindow: View {
     enum Page: String, CaseIterable, Identifiable {
-        case gestures, profiles, scroll, system, migration, general
+        case gestures, test, profiles, scroll, system, migration, general
         var id: String { rawValue }
         var title: String {
             switch self {
             case .gestures: return L("Hareketler")
+            case .test: return L("Deneme modu")
             case .profiles: return L("Uygulama profilleri")
             case .scroll: return L("Kaydırma")
             case .system: return L("Sistem hareketleri")
@@ -19,6 +20,7 @@ struct MainWindow: View {
         var icon: String {
             switch self {
             case .gestures: return "computermouse"
+            case .test: return "hand.tap"
             case .profiles: return "square.grid.2x2"
             case .scroll: return "arrow.up.and.down"
             case .system: return "shield"
@@ -56,7 +58,11 @@ struct MainWindow: View {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
         }
+        .sheet(isPresented: $model.showOnboarding) {
+            OnboardingView { model.showOnboarding = false }
+        }
         .onDisappear {
+            InputState.shared.dryRun = false
             NSApp.setActivationPolicy(.accessory)
         }
         // Panelden gelen sayfa isteği (pencere açıkken de, yeni açılırken de çalışır).
@@ -135,6 +141,7 @@ struct MainWindow: View {
     @ViewBuilder private var detail: some View {
         switch page {
         case .gestures: GesturesPage()
+        case .test: TestModePage()
         case .profiles: ProfilesPage()
         case .scroll: ScrollPage()
         case .system: SystemPage()

@@ -23,6 +23,10 @@ final class AppModel: ObservableObject {
     /// Son eylemin metni; nil iken arayüz "Henüz yok" gösterir.
     @Published var lastAction: String?
     @Published var liveTouches: [Touch] = []
+    /// Deneme modundaki son olaylar (en yeni önce).
+    @Published var eventLog = EventLog()
+    /// Karşılama rehberi gösteriliyor (ilk açılışta, ya da Genel sayfasından istenince).
+    @Published var showOnboarding = !Settings.shared.onboardingCompleted
     @Published var warnings: [Warning] = []
     /// İzin sıfırlama başarısız olduysa doğru; yönerge dil değişince de güncel kalsın diye metin hesaplanır.
     @Published var permissionResetFailed = false
@@ -48,6 +52,7 @@ final class AppModel: ObservableObject {
         _ = BindingStore.shared
         TouchMonitor.shared.onFrame = { [weak self] touches in self?.liveTouches = touches }
         TouchMonitor.shared.onGesture = { GestureDispatcher.handle($0) }
+        TouchMonitor.shared.onPinch = { GestureDispatcher.handlePinch($0) }
         mouseImage = MouseArtwork.load()
         updateGestureConfig()
         FrontApp.shared.$bundleID
@@ -55,8 +60,10 @@ final class AppModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateGestureConfig() }
             .store(in: &cancellables)
+        InputState.shared.dryRun = false
         InputTap.shared.onAction = { [weak self] text in
             self?.lastAction = text
+            self?.recordEvent(text, dryRun: false)
             Log.write(text)
         }
 
@@ -82,6 +89,8 @@ final class AppModel: ObservableObject {
         settings.objectWillChange
             .debounce(for: .milliseconds(100), scheduler: RunLoop.main)
             .sink { [weak self] _ in
+                // Kapatılınca süren yakınlaştırma da biter.
+                if !Settings.shared.enabled { GestureDispatcher.endPinchSession() }
                 self?.refreshWarnings()
                 self?.updateGestureConfig()
             }
@@ -95,11 +104,13 @@ final class AppModel: ObservableObject {
             .store(in: &cancellables)
     }
 
-    /// Tanıyıcıya güncel bölge düzenini ve (indeks kopyasıyla) çift dokunma sorgusunu verir.
+    /// Tanıyıcıya güncel bölge düzenini, çimdikleme ayarını ve (indeks kopyasıyla) çift dokunma sorgusunu verir.
     private func updateGestureConfig() {
         let index = BindingStore.shared.index
         let bundleID = FrontApp.shared.bundleID
-        TouchMonitor.shared.configure(layout: settings.zoneLayout) { fingers, zone in
+        let wantsPinch = index.match(Trigger(kind: .pinch, fingers: 2), bundleID: bundleID) != nil
+        TouchMonitor.shared.configure(layout: settings.zoneLayout, pinchStep: settings.pinchStep,
+                                      wantsPinch: wantsPinch) { fingers, zone in
             index.hasDoubleTap(fingers: fingers, zone: zone, bundleID: bundleID)
                 || (fingers == 4 && index.hasDoubleTap(fingers: 3, zone: zone, bundleID: bundleID))
         }
@@ -141,6 +152,8 @@ final class AppModel: ObservableObject {
 
     func startTouches() {
         changeLogged = false
+        // Aygıt yeniden başlarken kalkış karesi gelmeyebilir; yakınlaştırma takılı kalmasın.
+        GestureDispatcher.endPinchSession()
         let found = TouchMonitor.shared.start()
         if found != miceCount { Log.write("Magic Mouse: \(found) · \(TouchMonitor.shared.deviceDescription)") }
         miceCount = found
@@ -157,6 +170,11 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Olay günlüğüne ekler (yalnız bellek işlemi; ana iş parçacığında çağrılır).
+    func recordEvent(_ text: String, dryRun: Bool) {
+        eventLog.append(EventLogEntry(text: text, dryRun: dryRun))
+    }
+
     /// Belirli bir sayfa isteğini bırakır ve uygulamayı öne alır; pencereyi açmak çağıranın işidir (`openWindow`).
     func openMainWindow(page: String?) {
         requestedPage = page
@@ -167,6 +185,7 @@ final class AppModel: ObservableObject {
 
     func pause(for interval: TimeInterval) {
         settings.pausedUntil = PauseState.pausing(for: interval, from: Date()).pausedUntil
+        GestureDispatcher.endPinchSession()
         Log.write("Duraklatıldı · \(Int(interval / 60)) dk")
         objectWillChange.send()
     }

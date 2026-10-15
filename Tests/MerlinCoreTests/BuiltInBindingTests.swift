@@ -15,7 +15,16 @@ final class BuiltInBindingTests: XCTestCase {
         XCTAssertEqual(list.map(\.builtInKey), ["zone-center", "two-finger", "three-finger", "three-finger-tap", "fn"])
         XCTAssertEqual(list.map(\.enabled), [true, false, true, false, true])
         XCTAssertTrue(list.allSatisfy { $0.isBuiltIn && $0.action == .middleClick && $0.appBundleID == nil })
-        XCTAssertEqual(DefaultBindings.definitions.map(\.key), list.map { $0.builtInKey! })
+        // Eski bayraklar ilk beş tanıma karşılık gelir; sonradan eklenen pinch göçle gelir.
+        XCTAssertEqual(DefaultBindings.definitions.prefix(5).map(\.key), list.map { $0.builtInKey! })
+    }
+
+    func testPinchDefinition() {
+        let d = DefaultBindings.definitions.last
+        XCTAssertEqual(d?.key, "pinch")
+        XCTAssertEqual(d?.trigger, Trigger(kind: .pinch, fingers: 2).normalized)
+        XCTAssertEqual(d?.action, .zoom(style: .gesture, modifiers: []))
+        XCTAssertEqual(d?.title, "İki parmakla çimdikle")
     }
 
     func testResetToDefault() {

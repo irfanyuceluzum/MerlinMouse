@@ -31,13 +31,15 @@ public struct BuiltInDefinition: Equatable {
         case "three-finger": return MerlinText.t("Üç parmakla bas")
         case "three-finger-tap": return MerlinText.t("Üç parmakla dokun")
         case "fn": return MerlinText.t("Fn + bas")
+        case "pinch": return MerlinText.t("İki parmakla çimdikle")
         default: return key
         }
     }
 }
 
 public enum DefaultBindings {
-    /// İlk kurulumdaki beş temel hareket (sıra sabit).
+    /// Temel hareketler (sıra sabit). İlk beşi eski ayar bayraklarının karşılığıdır;
+    /// sonradan eklenenler (`pinch`) yüklemede `BindingMigrations` ile gelir.
     public static let definitions: [BuiltInDefinition] = [
         BuiltInDefinition(key: "zone-center", trigger: Trigger(kind: .press, fingers: 1, zone: .center).normalized,
                           action: .middleClick),
@@ -50,9 +52,12 @@ public enum DefaultBindings {
                           action: .middleClick),
         BuiltInDefinition(key: "fn", trigger: Trigger(kind: .press, fingers: 0, modifier: .fn).normalized,
                           action: .middleClick),
+        BuiltInDefinition(key: "pinch", trigger: Trigger(kind: .pinch, fingers: 2).normalized,
+                          action: .zoom(style: .gesture, modifiers: [])),
     ]
 
-    /// Bugünkü dönüşüm kurallarının birebir karşılığı; hepsi genel kapsam, orta tıklama.
+    /// Eski bayraklı beş kuralın birebir karşılığı; hepsi genel kapsam, orta tıklama.
+    /// Sonraki temel hareketler (pinch) burada yoktur; yüklemede `addMissingPinch` ekler.
     public static func from(legacy: LegacyFlags) -> [GestureBinding] {
         let flags = [legacy.zoneClick, legacy.twoFingerClick, legacy.threeFingerClick,
                      legacy.threeFingerTap, legacy.fnDrag]

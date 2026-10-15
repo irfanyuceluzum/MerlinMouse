@@ -40,8 +40,11 @@ public struct PressStateMachine {
         return false
     }
 
-    public mutating func mouseDown(_ side: MouseSide, binding: GestureBinding?) -> (PressDecision, runAction: GestureAction?) {
-        guard session == nil, let binding else { return (.pass, nil) }
+    /// `dryRun`: yeni basış oturum açmaz, olay değişmeden geçer; açık oturum etkilenmez
+    /// (sürükleme/bırakma eski kararla döner).
+    public mutating func mouseDown(_ side: MouseSide, binding: GestureBinding?,
+                                   dryRun: Bool = false) -> (PressDecision, runAction: GestureAction?) {
+        guard !dryRun, session == nil, let binding else { return (.pass, nil) }
         self.binding = binding
         didDrag = false
         if let n = binding.action.buttonNumber {

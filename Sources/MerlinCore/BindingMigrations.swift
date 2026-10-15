@@ -47,4 +47,15 @@ public enum BindingMigrations {
         }
         return out
     }
+
+    /// Temel çimdikleme atamasını (açık, genel kapsam) ekler; genel kapsamda `pinch` anahtarlı ya da
+    /// çimdikleme tetikli bir atama zaten varsa (kapalı da olsa) dokunmaz. `tagBuiltIns`'ten sonra çağrılır.
+    public static func addMissingPinch(_ bindings: [GestureBinding]) -> [GestureBinding] {
+        guard let d = DefaultBindings.definitions.first(where: { $0.key == "pinch" }) else { return bindings }
+        let exists = bindings.contains {
+            $0.builtInKey == d.key || ($0.appBundleID == nil && $0.trigger.normalized.kind == .pinch)
+        }
+        if exists { return bindings }
+        return bindings + [GestureBinding(trigger: d.trigger, action: d.action, enabled: true, builtInKey: d.key)]
+    }
 }

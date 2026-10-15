@@ -3,7 +3,15 @@ import XCTest
 
 final class TriggerOptionsTests: XCTestCase {
     func testEditableKinds() {
-        XCTAssertEqual(TriggerOptions.editableKinds, [.press, .tap, .doubleTap, .swipe])
+        XCTAssertEqual(TriggerOptions.editableKinds, [.press, .tap, .doubleTap, .swipe, .pinch])
+    }
+
+    func testPinchOptions() {
+        XCTAssertEqual(TriggerOptions.fingerChoices(kind: .pinch), [2])
+        XCTAssertTrue(TriggerOptions.zoneChoices(kind: .pinch, fingers: 2, modifier: .none).isEmpty)
+        XCTAssertEqual(TriggerOptions.modifierChoices(kind: .pinch), [.none])
+        let t = TriggerOptions.sanitize(Trigger(kind: .pinch, fingers: 3, zone: .right, direction: .left, modifier: .fn))
+        XCTAssertEqual(t, Trigger(kind: .pinch, fingers: 2))
     }
 
     func testFingerChoices() {

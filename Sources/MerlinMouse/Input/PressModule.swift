@@ -7,6 +7,13 @@ final class PressModule: InputModule {
     private var machine = PressStateMachine()
 
     func handle(_ type: CGEventType, _ event: CGEvent) -> ModuleResult {
+        // Kuru deneme yalnız yeni basışları etkiler: yeni basış değişmeden geçer ve raporlanır;
+        // önceden açılmış oturumun sürükleme/bırakma olayları normal işlenir (düğme basılı kalmaz).
+        if InputState.shared.dryRun, type == .leftMouseDown || type == .rightMouseDown {
+            if let binding = matchBinding(type, event) { reportDry(binding) }
+            _ = machine.mouseDown(type == .leftMouseDown ? .left : .right, binding: nil, dryRun: true)
+            return .pass
+        }
         switch type {
         case .leftMouseDown, .rightMouseDown:
             TouchMonitor.shared.noteClick()
@@ -22,8 +29,15 @@ final class PressModule: InputModule {
         case .leftMouseDragged, .rightMouseDragged:
             let wasDragged = machine.didDrag
             let decision = machine.mouseDragged(type == .leftMouseDragged ? .left : .right)
-            if !wasDragged, machine.didDrag, machine.binding?.action == .middleClick, let b = machine.binding {
-                report("\(L("Orta tuş sürükleme")) · \(b.trigger.title)")
+            if !wasDragged, machine.didDrag, let b = machine.binding {
+                switch b.action {
+                case .middleClick:
+                    report("\(L("Orta tuş sürükleme")) · \(b.trigger.title)")
+                case .middleDrag(let mods):
+                    report("\(LF("Orta tuş + %@ sürükleme", GestureAction.modifierSymbols(mods))) · \(b.trigger.title)")
+                default:
+                    break
+                }
             }
             return apply(decision, event, .otherMouseDragged)
 
@@ -69,8 +83,17 @@ final class PressModule: InputModule {
         case .convert(let n):
             event.type = otherType
             event.setIntegerValueField(.mouseEventButtonNumber, value: n)
+            // Düzenleyicili orta tuş: basma, sürükleme ve bırakmanın üçüne de aynı tuşlar eklenir.
+            if case .middleDrag(let mods)? = machine.binding?.action {
+                event.flags = event.flags.union(ActionExecutor.flags(forModifiers: mods))
+            }
             return .pass
         }
+    }
+
+    private func reportDry(_ binding: GestureBinding) {
+        let text = LF("Deneme: %@ → %@", binding.trigger.title, binding.action.title)
+        DispatchQueue.main.async { AppModel.shared.recordEvent(text, dryRun: true) }
     }
 
     private func report(_ text: String) {
