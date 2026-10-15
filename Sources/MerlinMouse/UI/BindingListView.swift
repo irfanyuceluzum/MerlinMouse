@@ -10,6 +10,7 @@ struct BindingListView: View {
     @ObservedObject private var store = BindingStore.shared
     @State private var editing: GestureBinding?
     @State private var deleting: GestureBinding?
+    @State private var resetting: GestureBinding?
     @State private var hovered: UUID?
 
     private var items: [GestureBinding] { store.bindings.filter { $0.appBundleID == scope } }
@@ -27,6 +28,13 @@ struct BindingListView: View {
         } message: { b in
             Text("\(b.trigger.title) → \(b.action.title)")
         }
+        .confirmationDialog("Varsayılana sıfırlansın mı?", isPresented: Binding(
+            get: { resetting != nil }, set: { if !$0 { resetting = nil } }), presenting: resetting) { b in
+            Button("Varsayılana sıfırla") { store.resetToDefault(id: b.id) }
+            Button("Vazgeç", role: .cancel) {}
+        } message: { b in
+            Text("Temel hareketin tetiği ve eylemi ilk kurulumdaki hâline döner.")
+        }
     }
 
     // MARK: Kart
@@ -41,7 +49,7 @@ struct BindingListView: View {
                         MMSectionLabel("Eylem").frame(width: cols.action, alignment: .leading)
                         MMSectionLabel("Durum").frame(width: cols.status, alignment: .leading)
                         MMSectionLabel("Açık").frame(width: 56, alignment: .leading)
-                        Color.clear.frame(width: Columns.editWidth + 12 + Columns.chevronWidth, height: 1)
+                        Color.clear.frame(width: Columns.editWidth + Columns.trashWidth + 24 + Columns.chevronWidth, height: 1)
                     }
                     .padding(.horizontal, 20).padding(.vertical, 12)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -89,10 +97,11 @@ struct BindingListView: View {
 
     private struct Columns {
         static let editWidth: CGFloat = 82
+        static let trashWidth: CGFloat = 26
         static let chevronWidth: CGFloat = 10
         let trigger: CGFloat, action: CGFloat, status: CGFloat
         init(total: CGFloat) {
-            let avail = max(300, total - 40 - 5 * 12 - 56 - Columns.editWidth - Columns.chevronWidth)
+            let avail = max(300, total - 40 - 6 * 12 - 56 - Columns.editWidth - Columns.trashWidth - Columns.chevronWidth)
             let unit = avail / 5.1
             trigger = unit * 2.2; action = unit * 1.5; status = unit * 1.4
         }
@@ -124,7 +133,10 @@ struct BindingListView: View {
         let sub = subtitle(b, conflicts: conflicts, kind: kind)
         return HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(b.trigger.title).font(.system(size: 13.5, weight: .medium)).foregroundStyle(MM.text)
+                HStack(spacing: 6) {
+                    Text(b.trigger.title).font(.system(size: 13.5, weight: .medium)).foregroundStyle(MM.text)
+                    if b.isBuiltIn { builtInTag }
+                }
                 Text(sub.0).font(.system(size: 12)).foregroundStyle(sub.1 ? MM.warnText : MM.text2)
                     .lineLimit(2)
             }
@@ -148,6 +160,22 @@ struct BindingListView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(b.trigger.title) hareketini düzenle")
+            Group {
+                if b.isBuiltIn {
+                    Color.clear
+                } else {
+                    Button { deleting = b } label: {
+                        Image(systemName: "trash").font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(MM.text2)
+                            .frame(width: Columns.trashWidth, height: 26)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Atamayı sil")
+                    .accessibilityLabel("\(b.trigger.title) hareketini sil")
+                }
+            }
+            .frame(width: Columns.trashWidth, height: 26)
             Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(MM.text2).frame(width: Columns.chevronWidth)
         }
@@ -167,8 +195,23 @@ struct BindingListView: View {
         .accessibilityHint("\(b.trigger.title) hareketini düzenle")
         .contextMenu {
             Button("Düzenle") { editing = b }
-            Button("Sil", role: .destructive) { deleting = b }
+            if b.isBuiltIn {
+                Button("Varsayılana sıfırla") { resetting = b }
+            } else {
+                Button("Sil", role: .destructive) { deleting = b }
+            }
         }
+    }
+
+    private var builtInTag: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "lock.fill").font(.system(size: 8, weight: .semibold))
+            Text("Temel").font(.system(size: 10.5, weight: .medium))
+        }
+        .foregroundStyle(MM.text2)
+        .padding(.horizontal, 6).padding(.vertical, 2)
+        .background(MM.neuBg, in: Capsule())
+        .help("Temel hareket: silinemez, kapatılabilir ve varsayılana sıfırlanabilir.")
     }
 
     private func blockedLabel(_ conflicts: [Conflict]) -> String {

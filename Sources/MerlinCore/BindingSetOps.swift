@@ -11,7 +11,10 @@ public enum BindingSetOps {
         return out
     }
 
-    public static func upsert(_ binding: GestureBinding, in bindings: [GestureBinding]) -> [GestureBinding] {
+    public static func upsert(_ input: GestureBinding, in bindings: [GestureBinding]) -> [GestureBinding] {
+        var binding = input
+        // Temel hareketler her zaman genel kapsamdadır.
+        if binding.isBuiltIn { binding.appBundleID = nil; binding.appName = nil }
         var out = bindings
         if let i = out.firstIndex(where: { $0.id == binding.id }) {
             out[i] = binding
@@ -25,10 +28,16 @@ public enum BindingSetOps {
         return out
     }
 
-    /// Aynı tetik + kapsamdaki kapalı diğer atamalar yeni etkin atamanın yerine geçer.
+    /// Temel atama silinemez; eklenen atama kaldırılır.
+    public static func remove(_ id: UUID, in bindings: [GestureBinding]) -> [GestureBinding] {
+        guard let b = bindings.first(where: { $0.id == id }), !b.isBuiltIn else { return bindings }
+        return bindings.filter { $0.id != id }
+    }
+
+    /// Aynı tetik + kapsamdaki kapalı diğer atamalar yeni etkin atamanın yerine geçer (temel olanlar kalır).
     private static func removeDisabledRivals(of b: GestureBinding, in list: inout [GestureBinding]) {
         let t = b.trigger.normalized
-        list.removeAll { $0.id != b.id && !$0.enabled && $0.appBundleID == b.appBundleID && $0.trigger.normalized == t }
+        list.removeAll { $0.id != b.id && !$0.enabled && !$0.isBuiltIn && $0.appBundleID == b.appBundleID && $0.trigger.normalized == t }
     }
 
     private static func disableRivals(of b: GestureBinding, in list: inout [GestureBinding]) {

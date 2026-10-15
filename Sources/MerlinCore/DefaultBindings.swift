@@ -18,19 +18,46 @@ public struct LegacyFlags: Equatable {
     }
 }
 
+/// Temel hareket tanımı: anahtar, varsayılan tetik ve eylem.
+public struct BuiltInDefinition: Equatable {
+    public let key: String
+    public let trigger: Trigger
+    public let action: GestureAction
+    public let title: String
+}
+
 public enum DefaultBindings {
+    /// İlk kurulumdaki beş temel hareket (sıra sabit).
+    public static let definitions: [BuiltInDefinition] = [
+        BuiltInDefinition(key: "zone-center", trigger: Trigger(kind: .press, fingers: 1, zone: .center).normalized,
+                          action: .middleClick, title: "Orta bölgeye bas"),
+        BuiltInDefinition(key: "two-finger", trigger: Trigger(kind: .press, fingers: 2).normalized,
+                          action: .middleClick, title: "İki parmakla bas"),
+        // "3 ve üzeri": 4 parmak eşleştirmede 3 parmağa geri düşer.
+        BuiltInDefinition(key: "three-finger", trigger: Trigger(kind: .press, fingers: 3).normalized,
+                          action: .middleClick, title: "Üç parmakla bas"),
+        BuiltInDefinition(key: "three-finger-tap", trigger: Trigger(kind: .tap, fingers: 3).normalized,
+                          action: .middleClick, title: "Üç parmakla dokun"),
+        BuiltInDefinition(key: "fn", trigger: Trigger(kind: .press, fingers: 0, modifier: .fn).normalized,
+                          action: .middleClick, title: "Fn + bas"),
+    ]
+
     /// Bugünkü dönüşüm kurallarının birebir karşılığı; hepsi genel kapsam, orta tıklama.
     public static func from(legacy: LegacyFlags) -> [GestureBinding] {
-        func make(_ t: Trigger, _ on: Bool) -> GestureBinding {
-            GestureBinding(trigger: t.normalized, action: .middleClick, enabled: on)
+        let flags = [legacy.zoneClick, legacy.twoFingerClick, legacy.threeFingerClick,
+                     legacy.threeFingerTap, legacy.fnDrag]
+        return zip(definitions, flags).map { d, on in
+            GestureBinding(trigger: d.trigger, action: d.action, enabled: on, builtInKey: d.key)
         }
-        return [
-            make(Trigger(kind: .press, fingers: 1, zone: .center), legacy.zoneClick),
-            make(Trigger(kind: .press, fingers: 2), legacy.twoFingerClick),
-            // "3 ve üzeri": 4 parmak eşleştirmede 3 parmağa geri düşer.
-            make(Trigger(kind: .press, fingers: 3), legacy.threeFingerClick),
-            make(Trigger(kind: .tap, fingers: 3), legacy.threeFingerTap),
-            make(Trigger(kind: .press, fingers: 0, modifier: .fn), legacy.fnDrag),
-        ]
+    }
+
+    /// Temel atamayı tanımdaki tetik ve eyleme döndürür; id, açık/kapalı ve kapsam korunur.
+    public static func resetToDefault(_ binding: GestureBinding) -> GestureBinding {
+        guard let key = binding.builtInKey,
+              let d = definitions.first(where: { $0.key == key }) else { return binding }
+        var out = binding
+        out.trigger = d.trigger
+        out.action = d.action
+        return out
     }
 }

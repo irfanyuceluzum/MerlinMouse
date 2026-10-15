@@ -171,16 +171,7 @@ struct PanelView: View {
 
     // MARK: Uyarı bağlantıları
 
-    private var conflictCount: Int {
-        SystemGestureCatalog.conflictCount(env: model.conflictEnvironment())
-    }
-
     @ViewBuilder private var warningLinks: some View {
-        let count = conflictCount
-        if count > 0 {
-            linkRow("\(count) sistem hareketi açık, bunlara atama yapma", icon: "exclamationmark.triangle",
-                    bg: MM.warnBg, fg: MM.warnText) { openPage(.system) }
-        }
         if let btt = model.warnings.first(where: { $0.source == .btt }) {
             linkRow(btt.title, icon: "arrow.left.arrow.right", bg: MM.bttBg, fg: MM.bttText) { openPage(.gestures) }
         }

@@ -19,4 +19,19 @@ public enum BindingMigrations {
             return !hasTwin
         }
     }
+
+    /// Hiç anahtar taşımayan her temel tanım için, genel kapsamda tanımın tetiğine sahip bir atamayı
+    /// (önce açık olanı, yoksa ilkini) temel olarak işaretler. Eylem aranmaz; kullanıcı değiştirmiş olabilir.
+    public static func tagBuiltIns(_ bindings: [GestureBinding]) -> [GestureBinding] {
+        var out = bindings
+        for d in DefaultBindings.definitions {
+            if out.contains(where: { $0.builtInKey == d.key }) { continue }
+            let cands = out.indices.filter {
+                out[$0].builtInKey == nil && out[$0].appBundleID == nil && out[$0].trigger.normalized == d.trigger
+            }
+            guard let pick = cands.first(where: { out[$0].enabled }) ?? cands.first else { continue }
+            out[pick].builtInKey = d.key
+        }
+        return out
+    }
 }

@@ -18,8 +18,12 @@ public struct Conflict: Equatable {
     public var detail: String
     /// Çakışan atamanın eylem başlığı (yalnız `replacesDisabled`).
     public var subject: String?
+    /// Kapalı rakip temel atama: kayıtta silinmez, yalnız kapalı kalır.
+    public var keepsRival: Bool
 
-    public init(level: ConflictLevel, title: String, detail: String, subject: String? = nil) {
+    public init(level: ConflictLevel, title: String, detail: String, subject: String? = nil,
+                keepsRival: Bool = false) {
+        self.keepsRival = keepsRival
         self.level = level
         self.title = title
         self.detail = detail
@@ -92,6 +96,12 @@ public enum ConflictChecker {
 
         // Kapalı rakip varsa (açık rakip olsa da) kayıtta silineceği için her zaman bildirilir.
         for off in among where off.id != binding.id && !off.enabled && off.appBundleID == binding.appBundleID && off.trigger.normalized == t {
+            if off.isBuiltIn {
+                out.append(Conflict(level: .replacesDisabled, title: "Kapalı bir ataması var",
+                                    detail: "Bu hareketin kapalı bir temel ataması var; kaydedersen yeni atama çalışır, temel atama kapalı kalır.",
+                                    subject: off.action.title, keepsRival: true))
+                continue
+            }
             out.append(Conflict(level: .replacesDisabled, title: "Kapalı bir ataması var",
                                 detail: "Bu hareket kapalı '\(off.action.title)' atamasına bağlı. Kaydedersen yeni atama onun yerine geçer.",
                                 subject: off.action.title))

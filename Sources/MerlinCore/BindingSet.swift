@@ -7,19 +7,40 @@ public struct GestureBinding: Codable, Hashable {
     public var enabled: Bool
     public var appBundleID: String?
     public var appName: String?
+    /// Temel (ilk kurulum) hareket anahtarı; nil = kullanıcının eklediği atama.
+    public var builtInKey: String?
+
+    public var isBuiltIn: Bool { builtInKey != nil }
 
     public init(id: UUID = UUID(),
                 trigger: Trigger,
                 action: GestureAction,
                 enabled: Bool = true,
                 appBundleID: String? = nil,
-                appName: String? = nil) {
+                appName: String? = nil,
+                builtInKey: String? = nil) {
         self.id = id
         self.trigger = trigger
         self.action = action
         self.enabled = enabled
         self.appBundleID = appBundleID
         self.appName = appName
+        self.builtInKey = builtInKey
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, trigger, action, enabled, appBundleID, appName, builtInKey
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        trigger = try c.decode(Trigger.self, forKey: .trigger)
+        action = try c.decode(GestureAction.self, forKey: .action)
+        enabled = try c.decode(Bool.self, forKey: .enabled)
+        appBundleID = try c.decodeIfPresent(String.self, forKey: .appBundleID)
+        appName = try c.decodeIfPresent(String.self, forKey: .appName)
+        builtInKey = try c.decodeIfPresent(String.self, forKey: .builtInKey)
     }
 }
 

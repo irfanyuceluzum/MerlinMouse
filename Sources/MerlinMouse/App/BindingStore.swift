@@ -35,6 +35,14 @@ final class BindingStore: ObservableObject {
             file.save(loaded)
             Log.write("Gereksiz 4 parmak atamaları kaldırıldı: \(removed)")
         }
+        // Temel hareketleri işaretle (eski dosyalarda anahtar yok).
+        let tagged = BindingMigrations.tagBuiltIns(loaded.bindings)
+        if tagged != loaded.bindings {
+            let n = zip(tagged, loaded.bindings).filter { $0.builtInKey != $1.builtInKey }.count
+            loaded.bindings = tagged
+            file.save(loaded)
+            Log.write("Temel hareketler işaretlendi: \(n)")
+        }
         set = loaded
         index = BindingIndex(bindings: loaded.bindings)
         if let name = file.lastRecoveredBackupName {
@@ -74,10 +82,17 @@ final class BindingStore: ObservableObject {
 
     func dismissRecoveryNotice() { recoveryNotice = nil }
 
+    /// Temel atamalar silinmez (BindingSetOps.remove).
     func remove(id: UUID) {
         var next = set
-        next.bindings.removeAll { $0.id == id }
+        next.bindings = BindingSetOps.remove(id, in: next.bindings)
         apply(next)
+    }
+
+    /// Temel atamanın tetik ve eylemini varsayılana döndürür.
+    func resetToDefault(id: UUID) {
+        guard let b = set.bindings.first(where: { $0.id == id }), b.isBuiltIn else { return }
+        upsert(DefaultBindings.resetToDefault(b))
     }
 
     private func apply(_ next: BindingSet) {

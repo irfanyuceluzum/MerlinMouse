@@ -90,6 +90,11 @@ struct BindingEditorView: View {
     private let id: UUID
     private let enabled: Bool
     private let isEditing: Bool
+    private let original: GestureBinding?
+    private let initialTrigger: Trigger
+    private let initialScope: AppChoice?
+    @State private var confirmChange = false
+    @State private var confirmDelete = false
     @State private var trigger: Trigger
     @State private var picked = true
     @State private var custom: Bool
@@ -110,6 +115,7 @@ struct BindingEditorView: View {
         id = existing?.id ?? UUID()
         enabled = existing?.enabled ?? true
         isEditing = existing != nil
+        original = existing
         let startScope: AppChoice?
         if let e = existing, let bid = e.appBundleID {
             startScope = AppChoice(id: bid, name: e.appName ?? bid)
@@ -119,6 +125,8 @@ struct BindingEditorView: View {
         let start = existing?.trigger.normalized
             ?? TriggerOptions.firstFreeTrigger(among: BindingStore.shared.bindings, scope: startScope?.id,
                                                env: AppModel.shared.conflictEnvironment())
+        initialTrigger = start
+        initialScope = startScope
         _trigger = State(initialValue: start)
         _custom = State(initialValue: !GesturePresets.all.contains { $0.trigger == start.normalized })
         var k = EditorActionKind.middle
@@ -157,14 +165,76 @@ struct BindingEditorView: View {
 
     private func binding(for t: Trigger) -> GestureBinding {
         GestureBinding(id: id, trigger: t, action: action, enabled: enabled,
-                       appBundleID: scope?.id, appName: scope?.name)
+                       appBundleID: scope?.id, appName: scope?.name, builtInKey: original?.builtInKey)
     }
 
     private var current: GestureBinding { binding(for: trigger) }
 
+    private var isBuiltIn: Bool { original?.isBuiltIn ?? false }
+
+    /// Temel hareketin tetiği ya da eylemi kaydedilmiş hâlinden farklı mı?
+    private var builtInChanged: Bool {
+        guard let o = original, o.isBuiltIn else { return false }
+        return current.trigger.normalized != o.trigger.normalized || current.action != o.action
+    }
+
+    /// Kayıtlı atamadan herhangi bir fark var mı?
+    private var dirty: Bool {
+        guard let o = original else { return false }
+        return current.trigger.normalized != o.trigger.normalized || current.action != o.action
+            || current.appBundleID != o.appBundleID
+    }
+
+    /// Temel hareket değiştiyse önce onay ister.
     private func save() {
+        if builtInChanged { confirmChange = true } else { commit() }
+    }
+
+    private func commit() {
         BindingStore.shared.upsert(current)
         dismiss()
+    }
+
+    /// Alanları verilen atamanın tetik, eylem ve kapsamına çeker (kaydetmez).
+    private func load(_ b: GestureBinding) {
+        loadTrigger(b.trigger.normalized)
+        loadAction(b.action)
+        if let bid = b.appBundleID { scope = AppChoice(id: bid, name: b.appName ?? bid) } else { scope = nil }
+    }
+
+    private func loadTrigger(_ t: Trigger) {
+        trigger = t
+        custom = !GesturePresets.all.contains { $0.trigger == t.normalized }
+        picked = true
+    }
+
+    private func loadAction(_ a: GestureAction) {
+        switch a {
+        case .middleClick: kind = .middle
+        case .back: kind = .back
+        case .forward: kind = .forward
+        case .shortcut(let c): kind = .shortcut; combo = c
+        case .system(let x): kind = .system; sysAction = x
+        case .openApp(let p, let n): kind = .openApp; appPath = p; appName = n
+        case .runShortcut(let n): kind = .runShortcut; shortcutName = n
+        }
+    }
+
+    private func resetFields() {
+        if let o = original {
+            if o.isBuiltIn {
+                var d = DefaultBindings.resetToDefault(o)
+                d.appBundleID = scope?.id; d.appName = scope?.name
+                loadTrigger(d.trigger.normalized)
+                loadAction(d.action)
+            } else {
+                load(o)
+            }
+        } else {
+            loadTrigger(initialTrigger)
+            loadAction(.middleClick)
+            scope = initialScope
+        }
     }
 
     var body: some View {
@@ -175,12 +245,37 @@ struct BindingEditorView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(isEditing ? "Hareketi düzenle" : "Yeni hareket ekle")
-                            .font(.system(size: 18, weight: .semibold)).foregroundStyle(MM.text)
+                        HStack(spacing: 8) {
+                            Text(isEditing ? "Hareketi düzenle" : "Yeni hareket ekle")
+                                .font(.system(size: 18, weight: .semibold)).foregroundStyle(MM.text)
+                            if isBuiltIn {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "lock.fill").font(.system(size: 9, weight: .semibold))
+                                    Text("Temel hareket").font(.system(size: 11.5, weight: .medium))
+                                }
+                                .foregroundStyle(MM.text2)
+                                .padding(.horizontal, 8).padding(.vertical, 3)
+                                .background(MM.neuBg, in: Capsule())
+                            }
+                        }
                         Text("Bir hareket seç. Merlin Mouse onu macOS ve BetterTouchTool atamalarıyla karşılaştırır.")
                             .font(.system(size: 13)).foregroundStyle(MM.text2)
                     }
                     .padding(.horizontal, 24).padding(.top, 20).padding(.bottom, 12)
+
+                    if builtInChanged {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "exclamationmark.triangle").font(.system(size: 14, weight: .semibold))
+                            Text("Temel bir hareketi değiştiriyorsun. Varsayılan davranış değişir; 'Varsayılana sıfırla' ile geri alabilirsin.")
+                                .font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                        }
+                        .foregroundStyle(MM.warnText)
+                        .padding(.horizontal, 14).padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(MM.warnBg, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .padding(.horizontal, 24).padding(.bottom, 12)
+                    }
 
                     cardGrid.padding(.horizontal, 24)
                     if custom && picked { customFields.padding(.horizontal, 24).padding(.top, 12) }
@@ -210,6 +305,15 @@ struct BindingEditorView: View {
                 }
             }
             HStack(spacing: 10) {
+                if isBuiltIn {
+                    MMSecondaryButton("Varsayılana sıfırla") { resetFields() }
+                } else if isEditing {
+                    MMSecondaryButton("Değişiklikleri geri al") { resetFields() }
+                        .disabled(!dirty).opacity(dirty ? 1 : 0.4)
+                    smallButton("Sil", ink: .red) { confirmDelete = true }
+                } else {
+                    MMSecondaryButton("Sıfırla") { resetFields() }
+                }
                 Spacer()
                 MMSecondaryButton("Vazgeç") { dismiss() }.keyboardShortcut(.cancelAction)
                 MMPrimaryButton(isEditing ? "Kaydet" : "Ekle") { save() }
@@ -223,6 +327,21 @@ struct BindingEditorView: View {
         .frame(width: 820, height: 700)
         .background(MM.card)
         .onAppear { env = AppModel.shared.conflictEnvironment() }
+        .confirmationDialog("Temel hareketi değiştir?", isPresented: $confirmChange) {
+            Button("Değiştir") { commit() }
+            Button("Vazgeç", role: .cancel) {}
+        } message: {
+            Text("Varsayılan davranış değişir. İstediğin zaman 'Varsayılana sıfırla' ile geri alabilirsin.")
+        }
+        .confirmationDialog("Bu atama silinsin mi?", isPresented: $confirmDelete) {
+            Button("Sil", role: .destructive) {
+                BindingStore.shared.remove(id: id)
+                dismiss()
+            }
+            Button("Vazgeç", role: .cancel) {}
+        } message: {
+            Text("\(trigger.title) → \(action.title)")
+        }
     }
 
     // MARK: Kart ızgarası
@@ -545,6 +664,20 @@ struct BindingEditorView: View {
     }
 
     @ViewBuilder private var scopeField: some View {
+        if isBuiltIn {
+            Picker("Kapsam", selection: .constant("")) {
+                Text("Tüm uygulamalar").tag("")
+            }
+            .disabled(true)
+            Text("Temel hareketler tüm uygulamalarda geçerlidir. Bir uygulamaya özel davranış için Uygulama profillerinden yeni hareket ekle.")
+                .font(.system(size: 12)).foregroundStyle(MM.text2)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            scopePicker
+        }
+    }
+
+    @ViewBuilder private var scopePicker: some View {
         Picker("Kapsam", selection: Binding<String>(
             get: { scope?.id ?? "" },
             set: { v in
