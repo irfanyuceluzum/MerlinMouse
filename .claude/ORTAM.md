@@ -4,7 +4,9 @@ macOS menü çubuğu uygulaması: Magic Mouse dokunmatik yüzeyini okuyup tıkla
 orta tuşa ve başka eylemlere çevirir. SwiftPM paketi, Swift 5 dil modu, macOS 14+.
 
 ## Harita
-- `Package.swift` — iki hedef: `CMultitouch` (C köprüsü) ve `MerlinMouse` (uygulama).
+- `Package.swift` — hedefler: `CMultitouch` (C köprüsü), `MerlinCore` (saf model/mantık), `MerlinMouse` (uygulama), `MerlinCoreTests`.
+- `Sources/MerlinCore/` — yalnız Foundation: tetik, eylem, atama, çakışma denetçisi, hareket tanıyıcı. Test edilen her şey burada.
+- `Tests/MerlinCoreTests/` — `swift test` ile koşan testler.
 - `Sources/CMultitouch/` — özel MultitouchSupport.framework'e dlopen köprüsü; yalnız Magic Mouse'u (aile 112–127, dahili olmayan) dinler.
 - `Sources/MerlinMouse/App/` — giriş noktası (`MerlinMouseApp.swift`), durum (`AppModel.swift`), ayarlar (`Settings.swift`), günlük (`Log.swift`).
 - `Sources/MerlinMouse/Input/` — dokunma okuyucu (`TouchMonitor.swift`), olay yakalayıcı + öndeki uygulama (`EventTapper.swift`).
@@ -40,6 +42,9 @@ orta tuşa ve başka eylemlere çevirir. SwiftPM paketi, Swift 5 dil modu, macOS
 - `TouchMonitor` geri çağrısı arka iş parçacığında gelir; paylaşılan durumu kilitle koru, arayüze `DispatchQueue.main.async` ile gönder.
 - Yeni özellik = ayrı modül/dosya; mevcut sınıfa yığma.
 - SwiftUI'de kendi tiplerin SwiftUI adlarıyla çakışmasın (`Binding`, `Settings` vb. yeni tip adı kullanma).
+- `MerlinCore` yalnız Foundation import eder (AppKit/CoreGraphics/SwiftUI yok). Davranış değiştiren mantık Core'da yazılır ve `Tests/MerlinCoreTests`'te testlenir.
+- Kalıcı biçim: `{"version":1,"bindings":[…]}`, elle Codable + `type` ayrımcı, bilinmeyen tür korunur; yazma `.atomic`.
+- Ürün kararları (v1): "Basılı tut" modelde var, arayüzde yok; parmakla kaydırma yalnız 3+ parmak; tuşlu (Fn/⌥/⌘/⇧) tetiklerde parmak sayısı "herhangi" (0); panelde atama aç/kapa listesi + "Ayarlar…", düzenleme ana pencerede.
 
 ## Korunacak davranışlar
 - Tek parmakla sol bölgeye normal sol tıklama hiçbir koşulda dönüştürülmez/geciktirilmez.
@@ -47,6 +52,7 @@ orta tuşa ve başka eylemlere çevirir. SwiftPM paketi, Swift 5 dil modu, macOS
 - Orta tuşla sürüklerken kaydırma engeli; 3D programlarda atalet kapatma.
 - `~/Library/Logs/MerlinMouse.log` günlüğü (başlangıç, fare, izin, her eylem).
 - `MerlinMouse --probe` tanılama çıktısı.
+- UserDefaults'tan atamalara göçte kullanıcının mevcut hareket ayarları korunur.
 - İzin yokken sessiz bekleme, izin gelince yakalayıcıyı kendiliğinden başlatma.
 
 ## Risk listesi (danisman)
