@@ -24,7 +24,7 @@ Normal sol tıklama hiçbir zaman değiştirilmez. MacBook'un dahili trackpad'i 
 
 ## Gereksinimler
 
-- macOS 14 veya üstü
+- macOS 15 veya üstü
 - Swift 5.9+ (Xcode ya da Command Line Tools)
 - Magic Mouse
 

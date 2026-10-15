@@ -7,11 +7,12 @@ final class Settings: ObservableObject {
     private let defaults = UserDefaults.standard
 
     @Published var enabled: Bool { didSet { save(enabled, "enabled") } }
-    @Published var zoneClick: Bool { didSet { save(zoneClick, "zoneClick") } }
-    @Published var twoFingerClick: Bool { didSet { save(twoFingerClick, "twoFingerClick") } }
-    @Published var threeFingerClick: Bool { didSet { save(threeFingerClick, "threeFingerClick") } }
-    @Published var threeFingerTap: Bool { didSet { save(threeFingerTap, "threeFingerTap") } }
-    @Published var fnDrag: Bool { didSet { save(fnDrag, "fnDrag") } }
+    // Eski, yalnız göç: atamalar artık bindings.json'da; bu bayraklar yazılmaz, yalnız ilk göçte okunur.
+    private(set) var zoneClick: Bool
+    private(set) var twoFingerClick: Bool
+    private(set) var threeFingerClick: Bool
+    private(set) var threeFingerTap: Bool
+    private(set) var fnDrag: Bool
     @Published var blockScrollWhileDragging: Bool { didSet { save(blockScrollWhileDragging, "blockScrollWhileDragging") } }
     @Published var calm3DScroll: Bool { didSet { save(calm3DScroll, "calm3DScroll") } }
     /// Orta bölgenin genişliği, yüzey genişliğinin oranı olarak (0.15…0.45).

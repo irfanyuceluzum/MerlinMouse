@@ -1,10 +1,13 @@
 import SwiftUI
+import MerlinCore
 
 /// Menü çubuğundan açılan panel.
 struct PanelView: View {
     @ObservedObject private var model = AppModel.shared
     @ObservedObject private var s = Settings.shared
     @ObservedObject private var front = FrontApp.shared
+    @ObservedObject private var bindingStore = BindingStore.shared
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -12,18 +15,18 @@ struct PanelView: View {
             if !model.trusted { permissionCard }
             liveSection
             section("Orta tuş") {
-                toggle("Orta bölgeye bas · tıkla ya da sürükle", $s.zoneClick)
-                if s.zoneClick {
-                    HStack {
-                        Text("Orta bölge genişliği").font(.caption).foregroundStyle(.secondary)
-                        Slider(value: $s.zoneWidth, in: 0.15...0.45).controlSize(.small)
-                        Text("%\(Int(s.zoneWidth * 100))").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                ForEach(bindingStore.set.bindings, id: \.id) { b in
+                    Toggle(isOn: Binding(get: { b.enabled },
+                                         set: { bindingStore.setEnabled(id: b.id, $0) })) {
+                        Text("\(b.trigger.title) → \(b.action.title)").font(.callout)
                     }
+                    .toggleStyle(.switch).controlSize(.mini)
                 }
-                toggle("İki parmakla bas", $s.twoFingerClick)
-                toggle("Üç parmakla bas", $s.threeFingerClick)
-                toggle("Üç parmakla dokun (basmadan)", $s.threeFingerTap)
-                toggle("Fn + sol sürükleme", $s.fnDrag)
+                HStack {
+                    Text("Orta bölge genişliği").font(.caption).foregroundStyle(.secondary)
+                    Slider(value: $s.zoneWidth, in: 0.15...0.45).controlSize(.small)
+                    Text("%\(Int(s.zoneWidth * 100))").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                }
             }
             section("Kaydırma") {
                 toggle("Orta tuşla sürüklerken kaydırmayı engelle", $s.blockScrollWhileDragging)
@@ -36,6 +39,13 @@ struct PanelView: View {
         .padding(16)
         .frame(width: 344)
         .tint(.merlinAccent)
+    }
+
+    /// Orta bölge haritada yalnız etkin bir "orta bölgeye bas" ataması varsa görünür.
+    private var zoneVisible: Bool {
+        bindingStore.set.bindings.contains {
+            $0.enabled && $0.trigger.normalized == Trigger(kind: .press, fingers: 1, zone: .center)
+        }
     }
 
     // MARK: Bölümler
@@ -71,7 +81,7 @@ struct PanelView: View {
 
     private var liveSection: some View {
         HStack(alignment: .top, spacing: 14) {
-            MouseMap(touches: model.liveTouches, zoneWidth: s.zoneClick ? s.zoneWidth : 0, flipped: s.flipY)
+            MouseMap(touches: model.liveTouches, zoneWidth: zoneVisible ? s.zoneWidth : 0, flipped: s.flipY)
             VStack(alignment: .leading, spacing: 6) {
                 Text("SON EYLEM").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
                 Text(model.lastAction).font(.callout.weight(.medium)).fixedSize(horizontal: false, vertical: true)
@@ -120,6 +130,12 @@ struct PanelView: View {
             }
             .font(.callout)
             HStack {
+                Button("Ayarlar…") {
+                    openWindow(id: "main")
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+                .controlSize(.small)
                 Spacer()
                 Button("Merlin Mouse'tan çık") { NSApp.terminate(nil) }.controlSize(.small)
             }
@@ -161,6 +177,8 @@ struct MouseMap: View {
     var touches: [Touch]
     var zoneWidth: Double
     var flipped: Bool
+    /// Varsayılan boyut panelin bugünkü boyutudur.
+    var size: CGSize = CGSize(width: 78, height: 156)
 
     var body: some View {
         Canvas { context, size in
@@ -195,7 +213,7 @@ struct MouseMap: View {
                            with: .color(Color.merlinAccent.opacity(0.85)))
             }
         }
-        .frame(width: 78, height: 156)
+        .frame(width: size.width, height: size.height)
         .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
         .accessibilityLabel("Magic Mouse dokunma haritası")
     }

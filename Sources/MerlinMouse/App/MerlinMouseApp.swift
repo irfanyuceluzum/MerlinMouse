@@ -18,15 +18,46 @@ struct MerlinMouseApp: App {
         MenuBarExtra {
             PanelView()
         } label: {
-            Image(systemName: "magicmouse")
+            MenuBarLabel()
         }
         .menuBarExtraStyle(.window)
+
+        // Açılışta kendiliğinden belirmez; panelden, Finder'dan ya da Spotlight'tan açılır.
+        Window("Merlin Mouse", id: "main") {
+            MainWindow()
+        }
+        .defaultSize(width: 980, height: 660)
+        .defaultLaunchBehavior(.suppressed)
+    }
+}
+
+extension Notification.Name {
+    /// Ana pencereyi açma isteği (uygulama yeniden açıldığında gönderilir).
+    static let merlinOpenMain = Notification.Name("dev.merlinmouse.openMain")
+}
+
+/// Menü çubuğu simgesi; ana pencereyi açma bildirimini dinler.
+struct MenuBarLabel: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Image(systemName: "magicmouse")
+            .onReceive(NotificationCenter.default.publisher(for: .merlinOpenMain)) { _ in
+                openWindow(id: "main")
+                NSApp.activate(ignoringOtherApps: true)
+            }
     }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppModel.shared.start()
+    }
+
+    /// Finder / Spotlight'tan yeniden açılınca ana pencereyi göster.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        NotificationCenter.default.post(name: .merlinOpenMain, object: nil)
+        return true
     }
 }
 

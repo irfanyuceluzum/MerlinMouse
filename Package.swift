@@ -3,10 +3,13 @@ import PackageDescription
 
 let package = Package(
     name: "MerlinMouse",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS("15.0")],
     targets: [
         // Özel MultitouchSupport framework'üne dlopen ile bağlanan küçük C köprüsü.
         .target(name: "CMultitouch"),
-        .executableTarget(name: "MerlinMouse", dependencies: ["CMultitouch"]),
+        // Saf model ve mantık (yalnız Foundation): tetik, eylem, atama, çakışma denetçisi.
+        .target(name: "MerlinCore"),
+        .executableTarget(name: "MerlinMouse", dependencies: ["CMultitouch", "MerlinCore"]),
+        .testTarget(name: "MerlinCoreTests", dependencies: ["MerlinCore"]),
     ]
 )

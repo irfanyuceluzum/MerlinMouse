@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import Combine
+import MerlinCore
 
 struct Warning: Identifiable, Hashable {
     enum Source { case macOS, btt }
@@ -29,14 +30,12 @@ final class AppModel: ObservableObject {
     func start() {
         Log.write("Başladı · sürüm \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?")")
         settings.applyAppearance()
+        // Olay yakalayıcı başlamadan atamalar yüklensin.
+        _ = BindingStore.shared
         TouchMonitor.shared.onFrame = { [weak self] touches in self?.liveTouches = touches }
-        TouchMonitor.shared.onThreeFingerTap = { [weak self] in
-            guard let self, self.settings.enabled, self.settings.threeFingerTap, EventTapper.shared.isRunning else { return }
-            EventTapper.shared.postMiddleClick()
-            self.lastAction = "Orta tıklama · üç parmakla dokunma"
-            Log.write(self.lastAction)
-        }
-        EventTapper.shared.onAction = { [weak self] text in
+        TouchMonitor.shared.onGesture = { GestureDispatcher.handle($0) }
+        updateGestureConfig()
+        InputTap.shared.onAction = { [weak self] text in
             self?.lastAction = text
             Log.write(text)
         }
@@ -52,13 +51,31 @@ final class AppModel: ObservableObject {
         // Hareket ayarları değişince çakışma uyarılarını yenile.
         settings.objectWillChange
             .debounce(for: .milliseconds(100), scheduler: RunLoop.main)
-            .sink { [weak self] _ in self?.refreshWarnings() }
+            .sink { [weak self] _ in
+                self?.refreshWarnings()
+                self?.updateGestureConfig()
+            }
             .store(in: &cancellables)
+        BindingStore.shared.$set
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.refreshWarnings()
+                self?.updateGestureConfig()
+            }
+            .store(in: &cancellables)
+    }
+
+    /// Tanıyıcıya güncel bölge genişliğini ve (indeks kopyasıyla) çift dokunma sorgusunu verir.
+    private func updateGestureConfig() {
+        let index = BindingStore.shared.index
+        TouchMonitor.shared.configure(zoneWidth: settings.zoneWidth) { fingers, zone in
+            index.hasDoubleTap(fingers: fingers, zone: zone)
+        }
     }
 
     private func tick() {
         ticks += 1
-        if !EventTapper.shared.isRunning { checkTrust(prompt: false) }
+        if !InputTap.shared.isRunning { checkTrust(prompt: false) }
         // Fare bulunamadıysa (Bluetooth yeni bağlandıysa) 10 sn'de bir yeniden tara.
         if miceCount <= 0 && ticks % 5 == 0 { startTouches() }
         if ticks % 5 == 0 { refreshWarnings() }
@@ -76,8 +93,8 @@ final class AppModel: ObservableObject {
         let nowTrusted = AXIsProcessTrustedWithOptions(options)
         if nowTrusted != trusted || prompt { Log.write("Erişilebilirlik izni: \(nowTrusted ? "var" : "yok")") }
         trusted = nowTrusted
-        if trusted && !EventTapper.shared.isRunning {
-            Log.write(EventTapper.shared.start() ? "Olay yakalayıcı çalışıyor" : "Olay yakalayıcı başlatılamadı")
+        if trusted && !InputTap.shared.isRunning {
+            Log.write(InputTap.shared.start() ? "Olay yakalayıcı çalışıyor" : "Olay yakalayıcı başlatılamadı")
         }
     }
 
@@ -87,12 +104,15 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Çakışma denetiminin kullandığı ortam (Sistem hareketleri sayfası da bunu kullanır).
+    func conflictEnvironment() -> ConflictEnvironment { SystemCheck.environment() }
+
     func refreshWarnings() {
-        warnings = SystemCheck.warnings(for: settings)
+        warnings = SystemCheck.warnings(for: BindingStore.shared.set.bindings)
     }
 }
 
-/// macOS fare hareketleri ve BetterTouchTool ile çakışmaları bulur.
+/// macOS fare hareketleri ve BetterTouchTool ile çakışmaları bulur (ConflictChecker ile).
 enum SystemCheck {
     private static func mouseValue(_ key: String) -> Int? {
         for domain in ["com.apple.AppleMultitouchMouse", "com.apple.driver.AppleBluetoothMultitouch.mouse"] {
@@ -101,23 +121,40 @@ enum SystemCheck {
         return nil
     }
 
-    static func warnings(for s: Settings) -> [Warning] {
-        var result: [Warning] = []
-        let bttRunning = NSWorkspace.shared.runningApplications
-            .contains { $0.bundleIdentifier == "com.hegenberg.BetterTouchTool" }
-        if bttRunning && (s.twoFingerClick || s.threeFingerClick) {
-            result.append(Warning(
-                source: .btt,
-                title: "BetterTouchTool çalışıyor",
-                detail: "BTT'de 2 ve 3 parmak tıklaması da orta tıklamaya atanmış; orta tıklama iki kez gidebilir. BTT › Magic Mouse'ta bu ikisini kapat."
-            ))
+    private static func mouseString(_ key: String) -> String? {
+        for domain in ["com.apple.AppleMultitouchMouse", "com.apple.driver.AppleBluetoothMultitouch.mouse"] {
+            if let value = CFPreferencesCopyAppValue(key as CFString, domain as CFString) as? String { return value }
         }
-        if s.zoneClick, (mouseValue("MouseOneFingerDoubleTapGesture") ?? 0) != 0 {
-            result.append(Warning(
-                source: .macOS,
-                title: "Akıllı büyütme açık",
-                detail: "macOS tek parmakla çift dokunmayı akıllı büyütmeye ayırmış. Orta bölgeye hızlı iki tıklama yakınlaştırma da yapabilir."
-            ))
+        return nil
+    }
+
+    /// Güncel macOS fare ayarları ve BetterTouchTool durumu.
+    static func environment() -> ConflictEnvironment {
+        ConflictEnvironment(
+            mouseButtonMode: mouseString("MouseButtonMode"),
+            oneFingerDoubleTap: mouseValue("MouseOneFingerDoubleTapGesture") ?? 0,
+            twoFingerDoubleTap: mouseValue("MouseTwoFingerDoubleTapGesture") ?? 0,
+            twoFingerHorizSwipe: mouseValue("MouseTwoFingerHorizSwipeGesture") ?? 0,
+            bttRunning: NSWorkspace.shared.runningApplications
+                .contains { $0.bundleIdentifier == "com.hegenberg.BetterTouchTool" })
+    }
+
+    static func warnings(for bindings: [GestureBinding]) -> [Warning] {
+        let env = environment()
+        var result: [Warning] = []
+        var seen = Set<String>()
+        for b in bindings where b.enabled {
+            for c in ConflictChecker.check(b, among: bindings, env: env) {
+                let source: Warning.Source
+                switch c.level {
+                case .macOS: source = .macOS
+                case .btt: source = .btt
+                default: continue
+                }
+                if seen.insert(c.title).inserted {
+                    result.append(Warning(source: source, title: c.title, detail: c.detail))
+                }
+            }
         }
         return result
     }
