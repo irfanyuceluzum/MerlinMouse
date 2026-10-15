@@ -1,4 +1,5 @@
 import AppKit
+import CMultitouch
 import ApplicationServices
 import Combine
 import MerlinCore
@@ -47,7 +48,15 @@ final class AppModel: ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.tick() }
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
-        ) { [weak self] _ in self?.startTouches() }
+        ) { [weak self] _ in
+            self?.scheduleRestart(after: 1.5)
+            // Bluetooth geç toparlanabilir: 5 sn sonra bir kez daha dene.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.startTouches() }
+        }
+        // Aygıt ekleme/çıkarma (Bluetooth bağlanma/kopma): C geri çağrısı yakalama yapamaz.
+        OTMultitouchWatchDevices {
+            DispatchQueue.main.async { AppModel.shared.deviceChanged() }
+        }
         // Hareket ayarları değişince çakışma uyarılarını yenile.
         settings.objectWillChange
             .debounce(for: .milliseconds(100), scheduler: RunLoop.main)
@@ -81,7 +90,28 @@ final class AppModel: ObservableObject {
         if ticks % 5 == 0 { refreshWarnings() }
     }
 
+    private var restartWork: DispatchWorkItem?
+
+    /// Art arda gelen bildirimleri tek yeniden başlatmaya indirir.
+    private func scheduleRestart(after delay: TimeInterval) {
+        restartWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.startTouches() }
+        restartWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private var changeLogged = false
+
+    fileprivate func deviceChanged() {
+        if !changeLogged {
+            changeLogged = true
+            Log.write("Aygıt değişikliği algılandı")
+        }
+        scheduleRestart(after: 1.5)
+    }
+
     func startTouches() {
+        changeLogged = false
         let found = TouchMonitor.shared.start()
         if found != miceCount { Log.write("Magic Mouse: \(found) · \(TouchMonitor.shared.deviceDescription)") }
         miceCount = found

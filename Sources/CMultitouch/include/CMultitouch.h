@@ -16,6 +16,10 @@ typedef void (*OTFrameHandler)(const OTTouch *touches, int count, double timesta
 /// Bulunan fare sayısını döner; framework yüklenemezse -1.
 int OTMultitouchStart(OTFrameHandler handler);
 
+/// Aygıt eklenince/çıkarılınca (Bluetooth bağlanma/kopma) ana run loop'ta `onChange` çağrılır.
+/// Bir kez kurulur; sonraki çağrılar yok sayılır. Ana iş parçacığından çağrılmalı.
+void OTMultitouchWatchDevices(void (*onChange)(void));
+
 /// Akışı durdurur ve aygıt listesini bırakır.
 void OTMultitouchStop(void);
 

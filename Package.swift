@@ -6,7 +6,7 @@ let package = Package(
     platforms: [.macOS("15.0")],
     targets: [
         // Özel MultitouchSupport framework'üne dlopen ile bağlanan küçük C köprüsü.
-        .target(name: "CMultitouch"),
+        .target(name: "CMultitouch", linkerSettings: [.linkedFramework("IOKit"), .linkedFramework("CoreFoundation")]),
         // Saf model ve mantık (yalnız Foundation): tetik, eylem, atama, çakışma denetçisi.
         .target(name: "MerlinCore"),
         .executableTarget(name: "MerlinMouse", dependencies: ["CMultitouch", "MerlinCore"]),
