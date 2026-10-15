@@ -45,7 +45,7 @@ struct BindingListView: View {
                 let cols = Columns(total: geo.size.width)
                 VStack(spacing: 0) {
                     HStack(spacing: 12) {
-                        MMSectionLabel(L("Hareket")).frame(width: cols.trigger, alignment: .leading)
+                        MMSectionLabel(L("Hareket")).frame(width: Columns.glyphWidth + cols.trigger, alignment: .leading)
                         MMSectionLabel(L("Eylem")).frame(width: cols.action, alignment: .leading)
                         MMSectionLabel(L("Durum")).frame(width: cols.status, alignment: .leading)
                         MMSectionLabel(L("Açık")).frame(width: 56, alignment: .leading)
@@ -99,9 +99,12 @@ struct BindingListView: View {
         static let editWidth: CGFloat = 82
         static let trashWidth: CGFloat = 26
         static let chevronWidth: CGFloat = 10
+        /// Hareket simgesi (28) + başlıkla arası (10); hareket sütununa eklenir.
+        static let glyphWidth: CGFloat = 28 + 10
         let trigger: CGFloat, action: CGFloat, status: CGFloat
         init(total: CGFloat) {
-            let avail = max(300, total - 40 - 6 * 12 - 56 - Columns.editWidth - Columns.trashWidth - Columns.chevronWidth)
+            let avail = max(300, total - 40 - 6 * 12 - 56 - Columns.editWidth - Columns.trashWidth - Columns.chevronWidth
+                - Columns.glyphWidth)
             // Durum sütunu en uzun rozeti ("macOS ile çakışıyor") sığdıracak kadar geniş kalır.
             let st = max(avail / 5.1 * 1.4, 176)
             let unit = (avail - st) / 3.9
@@ -135,16 +138,20 @@ struct BindingListView: View {
         let kind = BindingStatus.kind(enabled: b.enabled, conflicts: conflicts)
         let sub = subtitle(b, conflicts: conflicts, kind: kind)
         return HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(b.trigger.title).font(.system(size: 13.5, weight: .medium)).foregroundStyle(MM.text)
-                    .lineLimit(1).minimumScaleFactor(0.85)
-                HStack(spacing: 6) {
-                    if b.isBuiltIn { builtInTag }
-                    Text(sub.0).font(.system(size: 12)).foregroundStyle(sub.1 ? MM.warnText : MM.text2)
-                        .lineLimit(2)
+            HStack(spacing: 10) {
+                GestureGlyphView(trigger: b.trigger)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(b.trigger.title).font(.system(size: 13.5, weight: .medium)).foregroundStyle(MM.text)
+                        .lineLimit(1).minimumScaleFactor(0.85)
+                    HStack(spacing: 6) {
+                        if b.isBuiltIn { builtInTag }
+                        Text(sub.0).font(.system(size: 12)).foregroundStyle(sub.1 ? MM.warnText : MM.text2)
+                            .lineLimit(2)
+                    }
                 }
+                .frame(width: cols.trigger, alignment: .leading)
             }
-            .frame(width: cols.trigger, alignment: .leading)
+            .frame(width: Columns.glyphWidth + cols.trigger, alignment: .leading)
             Text(b.action.title).font(.system(size: 13.5)).foregroundStyle(MM.text)
                 .frame(width: cols.action, alignment: .leading)
             MMStatusBadge(kind: kind, label: kind == .blocked ? blockedLabel(conflicts) : (kind == .replacesDisabled ? L("Kapalı kopya") : nil))

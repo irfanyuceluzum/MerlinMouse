@@ -55,6 +55,9 @@ struct ScrollPage: View {
                 VStack(spacing: 0) {
                     cardTitle(L("Öndeki uygulama"))
                     HStack(spacing: 8) {
+                        if !front.name.isEmpty {
+                            AppIconView(bundleID: front.bundleID, name: front.name, size: 20)
+                        }
                         Text(front.name.isEmpty ? "—" : front.name)
                             .font(.system(size: 13.5, weight: .medium)).foregroundStyle(MM.text)
                         if front.is3D {

@@ -407,7 +407,7 @@ struct BindingEditorView: View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
             ForEach(Array(GesturePresets.all.enumerated()), id: \.offset) { _, p in
                 let st = cardStatus(p.trigger)
-                gestureCard(title: p.title, status: st.text, dot: st.dot,
+                gestureCard(title: p.title, status: st.text, dot: st.dot, glyph: p.trigger,
                             selected: picked && !custom && trigger.normalized == p.trigger) {
                     trigger = p.trigger
                     custom = false
@@ -415,24 +415,36 @@ struct BindingEditorView: View {
                 }
             }
             gestureCard(title: L("Özel hareket…"), status: L("Tür, parmak ve bölgeyi kendin seç"), dot: nil,
-                        selected: picked && custom) {
+                        glyph: picked && custom ? trigger : nil, selected: picked && custom) {
                 custom = true
                 picked = true
             }
         }
     }
 
-    private func gestureCard(title: String, status: String, dot: Color?, selected: Bool,
+    /// `glyph` nil ise (özel hareket seçilmemişken) simge yerine ayar simgesi durur; hizalama bozulmaz.
+    private func gestureCard(title: String, status: String, dot: Color?, glyph: Trigger?, selected: Bool,
                              action: @escaping () -> Void) -> some View {
         let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         return Button(action: action) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Text(title).font(.system(size: 14, weight: .medium)).foregroundStyle(MM.text).lineLimit(1)
-                    Spacer(minLength: 0)
-                    if let dot { Circle().fill(dot).frame(width: 10, height: 10) }
+            HStack(alignment: .center, spacing: 10) {
+                if let glyph {
+                    GestureGlyphView(trigger: glyph)
+                } else {
+                    Image(systemName: "slider.horizontal.3").font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(MM.text2)
+                        .frame(width: CGFloat(GestureGlyph.width), height: CGFloat(GestureGlyph.height))
+                        .accessibilityHidden(true)
                 }
-                Text(status).font(.system(size: 12)).foregroundStyle(MM.text2).lineLimit(1)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(title).font(.system(size: 14, weight: .medium)).foregroundStyle(MM.text).lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                        Spacer(minLength: 0)
+                        if let dot { Circle().fill(dot).frame(width: 10, height: 10) }
+                    }
+                    Text(status).font(.system(size: 12)).foregroundStyle(MM.text2).lineLimit(1)
+                }
             }
             .padding(.horizontal, 12).padding(.vertical, 10)
             .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)

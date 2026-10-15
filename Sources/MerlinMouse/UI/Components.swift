@@ -204,6 +204,38 @@ struct MMDivider: View {
     var body: some View { Rectangle().fill(MM.line2).frame(height: 1) }
 }
 
+/// Uygulamanın gerçek simgesi; bulunamazsa adın baş harfli renkli kutusu.
+struct AppIconView: View {
+    let bundleID: String?
+    let name: String
+    var size: CGFloat = 28
+
+    /// Ada göre sabit harf kutusu renkleri (arka plan, yazı).
+    static func letterColors(_ name: String) -> (Color, Color) {
+        let sum = name.unicodeScalars.reduce(0) { $0 + Int($1.value) }
+        switch sum % 3 {
+        case 0: return (MM.bttBg, MM.bttText)
+        case 1: return (MM.warnBg, MM.warnText)
+        default: return (MM.accentSoft, MM.accentText)
+        }
+    }
+
+    var body: some View {
+        if let id = bundleID, let img = AppIcons.icon(bundleID: id) {
+            Image(nsImage: img).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+                .frame(width: size, height: size)
+                .accessibilityHidden(true)
+        } else {
+            let c = Self.letterColors(name)
+            Text(String(name.prefix(1)).uppercased())
+                .font(.system(size: (size * 0.46).rounded(), weight: .semibold)).foregroundStyle(c.1)
+                .frame(width: size, height: size)
+                .background(c.0, in: RoundedRectangle(cornerRadius: size * 0.25, style: .continuous))
+                .accessibilityHidden(true)
+        }
+    }
+}
+
 /// Uyarı / bilgi şeridi.
 struct MMBanner: View {
     enum Kind { case warning, info }

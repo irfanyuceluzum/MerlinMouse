@@ -52,42 +52,63 @@ struct TestModePage: View {
         .onDisappear { InputState.shared.dryRun = false }
     }
 
-    private func header(_ title: String) -> some View {
-        Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(MM.text)
-            .padding(.horizontal, 20).padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(MM.card2)
-            .overlay(alignment: .bottom) { Rectangle().fill(MM.line).frame(height: 1) }
-    }
+    /// Kartta her zaman gösterilen parmak satırı sayısı (Magic Mouse en fazla 5 parmak).
+    private static let fingerSlots = 5
+    private static let fingerRowHeight: CGFloat = 30
 
     private var fingersCard: some View {
-        MMCard {
+        // Kimliğe göre kararlı sıra: aynı parmak satır değiştirmez; fazlası gösterilmez.
+        let touches = Array(model.liveTouches.sorted { $0.id < $1.id }.prefix(Self.fingerSlots))
+        return MMCard {
             VStack(spacing: 0) {
-                header(L("Parmaklar"))
-                let touches = model.liveTouches
-                if touches.isEmpty {
-                    Text(L("Parmak algılanmadı")).font(.system(size: 13)).foregroundStyle(MM.text2)
-                        .padding(.horizontal, 20).padding(.vertical, 14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    ForEach(Array(touches.enumerated()), id: \.offset) { i, t in
-                        let front = t.front(flipped: s.flipY)
-                        let zone = Zone.classify(x: t.x, y: front, layout: s.zoneLayout)
-                        HStack(spacing: 12) {
-                            Text(LF("Parmak %lld", i + 1)).font(.system(size: 13, weight: .medium)).foregroundStyle(MM.text)
-                            Spacer(minLength: 8)
-                            Text(verbatim: "x \(pct(t.x))% · y \(pct(front))%")
-                                .font(.system(size: 12, design: .monospaced)).foregroundStyle(MM.text2)
-                            Text(zone.displayName).font(.system(size: 12.5, weight: .semibold))
-                                .foregroundStyle(MM.accentText)
-                                .frame(minWidth: 80, alignment: .trailing)
-                        }
-                        .padding(.horizontal, 20).padding(.vertical, 8)
-                        if i < touches.count - 1 { MMDivider() }
-                    }
+                HStack {
+                    Text(L("Parmaklar")).font(.system(size: 12, weight: .semibold)).foregroundStyle(MM.text)
+                    Spacer(minLength: 8)
+                    Text(verbatim: "\(touches.count) / \(Self.fingerSlots)")
+                        .font(.system(size: 12, design: .monospaced)).foregroundStyle(MM.text2)
+                }
+                .padding(.horizontal, 20).padding(.vertical, 8)
+                .background(MM.card2)
+                .overlay(alignment: .bottom) { Rectangle().fill(MM.line).frame(height: 1) }
+                ForEach(0..<Self.fingerSlots, id: \.self) { i in
+                    fingerRow(index: i, touch: i < touches.count ? touches[i] : nil)
+                    if i < Self.fingerSlots - 1 { MMDivider() }
                 }
             }
         }
+    }
+
+    private func fingerRow(index i: Int, touch: Touch?) -> some View {
+        HStack(spacing: 10) {
+            Text(verbatim: "\(i + 1)").font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(touch != nil ? MM.accentInk : MM.text2)
+                .frame(width: 20, height: 20)
+                .background { if touch != nil { Circle().fill(MM.accent) } }
+                .overlay {
+                    if touch == nil { Circle().strokeBorder(MM.line, style: StrokeStyle(lineWidth: 1, dash: [2, 2])) }
+                }
+                .opacity(touch != nil ? 1 : 0.7)
+            Text(LF("Parmak %lld", i + 1)).font(.system(size: 13, weight: .medium))
+                .foregroundStyle(touch != nil ? MM.text : MM.text2)
+            Spacer(minLength: 8)
+            if let t = touch {
+                let front = t.front(flipped: s.flipY)
+                let zone = Zone.classify(x: t.x, y: front, layout: s.zoneLayout)
+                Text(verbatim: "x \(pct(t.x))% · y \(pct(front))%")
+                    .font(.system(size: 12, design: .monospaced)).foregroundStyle(MM.text2)
+                Text(zone.displayName).font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(MM.accentText)
+                    .frame(minWidth: 80, alignment: .trailing)
+            } else {
+                Text(verbatim: "—").font(.system(size: 12, design: .monospaced)).foregroundStyle(MM.text2)
+                Text(verbatim: "—").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(MM.text2)
+                    .frame(minWidth: 80, alignment: .trailing)
+            }
+        }
+        .lineLimit(1)
+        .padding(.horizontal, 20)
+        .frame(height: Self.fingerRowHeight)
+        .accessibilityElement(children: .combine)
     }
 
     private var logCard: some View {

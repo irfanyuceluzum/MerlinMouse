@@ -55,8 +55,7 @@ struct PresetSheet: View {
                 MMSectionLabel(L("Uygulama"))
                 if let app {
                     HStack(spacing: 8) {
-                        Image(systemName: found ? "checkmark.circle.fill" : "app")
-                            .font(.system(size: 14, weight: .semibold)).foregroundStyle(MM.accentText)
+                        AppIconView(bundleID: app.bundleID, name: app.name, size: 24)
                         Text(found ? LF("Bulundu: %@", app.name) : LF("Seçildi: %@", app.name))
                             .font(.system(size: 13.5, weight: .medium)).foregroundStyle(MM.text)
                         Spacer(minLength: 0)

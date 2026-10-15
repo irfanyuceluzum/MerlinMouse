@@ -75,11 +75,7 @@ struct PanelView: View {
             MMSectionLabel(L("Etkin profil"))
             MMCard {
                 HStack(spacing: 10) {
-                    Text(String(appName.prefix(1)).uppercased())
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(MM.bttText)
-                        .frame(width: 28, height: 28)
-                        .background(MM.bttBg, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    AppIconView(bundleID: front.bundleID, name: appName, size: 28)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(appName).font(.system(size: 14, weight: .medium)).foregroundStyle(MM.text).lineLimit(1)
                         Text(hasScopedSetup ? L("Bu uygulamanın profili etkin") : L("Genel atamalar · öndeki uygulamadan algılandı"))

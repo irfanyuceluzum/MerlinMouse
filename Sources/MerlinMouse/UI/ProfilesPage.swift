@@ -43,23 +43,12 @@ struct ProfilesPage: View {
 
     // MARK: Uygulama sütunu
 
-    private func letterColors(_ name: String) -> (Color, Color) {
-        let sum = name.unicodeScalars.reduce(0) { $0 + Int($1.value) }
-        switch sum % 3 {
-        case 0: return (MM.bttBg, MM.bttText)
-        case 1: return (MM.warnBg, MM.warnText)
-        default: return (MM.accentSoft, MM.accentText)
-        }
-    }
-
-    private func appRow(title: String, selected: Bool, bg: Color, fg: Color, letter: String,
-                        live: Bool, action: @escaping () -> Void) -> some View {
+    private func appRow<Icon: View>(title: String, selected: Bool, live: Bool,
+                                    @ViewBuilder icon: () -> Icon, action: @escaping () -> Void) -> some View {
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
         return Button(action: action) {
             HStack(spacing: 10) {
-                Text(letter).font(.system(size: 13, weight: .semibold)).foregroundStyle(fg)
-                    .frame(width: 28, height: 28)
-                    .background(bg, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                icon()
                 Text(title).font(.system(size: 13.5, weight: selected ? .medium : .regular))
                     .foregroundStyle(MM.text).lineLimit(1)
                 Spacer(minLength: 0)
@@ -79,13 +68,15 @@ struct ProfilesPage: View {
             MMSectionLabel(L("Uygulamalar")).padding(.horizontal, 8).padding(.bottom, 8)
             ScrollView {
                 VStack(spacing: 4) {
-                    appRow(title: L("Tüm uygulamalar"), selected: selection == nil, bg: MM.neuBg, fg: MM.text,
-                           letter: "*", live: false) { selection = nil }
+                    appRow(title: L("Tüm uygulamalar"), selected: selection == nil, live: false) {
+                        Text(verbatim: "*").font(.system(size: 13, weight: .semibold)).foregroundStyle(MM.text)
+                            .frame(width: 28, height: 28)
+                            .background(MM.neuBg, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    } action: { selection = nil }
                     ForEach(apps) { app in
-                        let c = letterColors(app.name)
-                        appRow(title: app.name, selected: selection == app.id, bg: c.0, fg: c.1,
-                               letter: String(app.name.prefix(1)).uppercased(),
-                               live: front.bundleID == app.id) { selection = app.id }
+                        appRow(title: app.name, selected: selection == app.id, live: front.bundleID == app.id) {
+                            AppIconView(bundleID: app.id, name: app.name, size: 28)
+                        } action: { selection = app.id }
                     }
                 }
             }
@@ -99,11 +90,20 @@ struct ProfilesPage: View {
         .overlay(alignment: .trailing) { Rectangle().fill(MM.line).frame(width: 1) }
     }
 
+    /// Menü öğesi: 16 pt uygulama simgesi (varsa) + ad. Menüde çerçeve işlemediği için simge küçültülmüş kopyadır.
+    @ViewBuilder private func menuLabel(_ title: String, icon: NSImage?) -> some View {
+        if let icon {
+            Label { Text(title) } icon: { Image(nsImage: AppIcons.resized(icon, side: 16)) }
+        } else {
+            Text(title)
+        }
+    }
+
     private var addMenu: some View {
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
         return Menu {
             ForEach(AppPicker.runningApps()) { app in
-                Button(app.name) { add(app) }
+                Button { add(app) } label: { menuLabel(app.name, icon: AppIcons.icon(bundleID: app.id)) }
             }
             Divider()
             Button(L("Diğer uygulama…")) {
@@ -112,7 +112,7 @@ struct ProfilesPage: View {
             Divider()
             Section(L("Hazır profiller")) {
                 ForEach(AppPresets.all) { p in
-                    Button(p.name) { presetChoice = p }
+                    Button { presetChoice = p } label: { menuLabel(p.name, icon: AppIcons.firstIcon(bundleIDs: p.bundleIDs)) }
                 }
             }
         } label: {

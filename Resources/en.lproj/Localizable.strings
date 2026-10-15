@@ -497,7 +497,6 @@
 "Kuru deneme" = "Dry run";
 "Eylemleri çalıştırmadan yalnız neyin tetikleneceğini gösterir." = "Shows only what would trigger, without running the actions.";
 "Parmaklar" = "Fingers";
-"Parmak algılanmadı" = "No fingers detected";
 "Parmak %lld" = "Finger %lld";
 "Algılanan hareketler" = "Detected gestures";
 "Temizle" = "Clear";
