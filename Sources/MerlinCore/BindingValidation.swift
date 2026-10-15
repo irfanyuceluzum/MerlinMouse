@@ -39,12 +39,14 @@ public enum BindingValidation {
 
     /// Kayıtta kapalı atama(lar) silinecekse kullanıcıya gösterilecek bilgi; yoksa nil.
     public static func removalNotice(conflicts: [Conflict]) -> String? {
-        let rivals = conflicts.filter { $0.level == .replacesDisabled && !$0.keepsRival }
+        let rivals = conflicts.filter { ($0.level == .replacesDisabled || $0.level == .duplicate) && !$0.keepsRival }
         guard let first = rivals.first else { return nil }
+        let allClosed = rivals.allSatisfy { $0.level == .replacesDisabled }
+        let kapali = allClosed ? "kapalı " : ""
         if rivals.count == 1 {
-            return "Kaydedersen kapalı '\(first.subject ?? "başka bir")' ataması silinir ve yerine bu geçer."
+            return "Kaydedersen \(kapali)'\(first.subject ?? "başka bir")' ataması silinir ve yerine bu geçer."
         }
-        return "Kaydedersen kapalı \(rivals.count) atama silinir ve yerine bu geçer."
+        return "Kaydedersen \(kapali)\(rivals.count) atama silinir ve yerine bu geçer."
     }
 
     /// Tek kartta gösterilecek en ağır çakışma.

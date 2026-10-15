@@ -464,7 +464,7 @@ struct BindingEditorView: View {
     @ViewBuilder private func conflictArea(_ conflicts: [Conflict]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             conflictMain(conflicts)
-            if picked, let c = BindingValidation.heaviest(conflicts), c.level != .replacesDisabled,
+            if picked, let c = BindingValidation.heaviest(conflicts), c.level != .replacesDisabled, c.level != .duplicate,
                let notice = BindingValidation.removalNotice(conflicts: conflicts) {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 14, weight: .semibold))
@@ -509,11 +509,12 @@ struct BindingEditorView: View {
                 let rival = BindingStore.shared.bindings.first {
                     $0.id != id && $0.enabled && $0.appBundleID == scope?.id && $0.trigger.normalized == trigger.normalized
                 }
+                let rivalIsBuiltIn = rival?.isBuiltIn ?? false
                 conflictCard(icon: "square.on.square", bg: MM.neuBg, line: MM.line, fg: MM.text,
                              title: "Bu hareket zaten '\(rival?.action.title ?? "başka bir")' eylemine atanmış",
-                             detail: "Önceki açık atama kapatılır.") {
+                             detail: c.detail) {
                     smallButton("Farklı hareket seç", fill: MM.card, border: MM.line) { clearPick() }
-                    smallButton("Öncekini kapatıp ata", fill: MM.accent, ink: MM.accentInk) { save() }
+                    smallButton(rivalIsBuiltIn ? "Temeli kapatıp ata" : "Öncekinin yerine geçir", fill: MM.accent, ink: MM.accentInk) { save() }
                         .disabled(!canSaveNow(conflicts))
                 }
             case .replacesDisabled:

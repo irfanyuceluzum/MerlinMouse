@@ -20,6 +20,19 @@ public enum BindingMigrations {
         }
     }
 
+    /// Temel olmayan, kapalı bir atamayı; aynı kapsamda aynı tetik ve aynı eyleme sahip AÇIK ya da TEMEL (açık/kapalı) bir atama varsa kaldırır.
+    public static func collapseRedundantDisabledCopies(_ bindings: [GestureBinding]) -> [GestureBinding] {
+        bindings.filter { b in
+            guard !b.enabled, !b.isBuiltIn else { return true }
+            let t = b.trigger.normalized
+            let hasOpenTwin = bindings.contains {
+                $0.id != b.id && ($0.enabled || $0.isBuiltIn) && $0.appBundleID == b.appBundleID
+                    && $0.trigger.normalized == t && $0.action == b.action
+            }
+            return !hasOpenTwin
+        }
+    }
+
     /// Hiç anahtar taşımayan her temel tanım için, genel kapsamda tanımın tetiğine sahip bir atamayı
     /// (önce açık olanı, yoksa ilkini) temel olarak işaretler. Eylem aranmaz; kullanıcı değiştirmiş olabilir.
     public static func tagBuiltIns(_ bindings: [GestureBinding]) -> [GestureBinding] {

@@ -127,7 +127,7 @@ struct MMStatusBadge: View {
         let s = spec
         HStack(spacing: 6) {
             Image(systemName: s.icon).font(.system(size: 10, weight: .bold))
-            Text(label ?? s.text).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+            Text(label ?? s.text).font(.system(size: 12, weight: .semibold)).lineLimit(1).fixedSize()
         }
         .foregroundStyle(s.fg)
         .padding(.horizontal, 10).padding(.vertical, 3)

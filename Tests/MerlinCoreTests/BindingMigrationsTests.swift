@@ -28,4 +28,24 @@ final class BindingMigrationsTests: XCTestCase {
         XCTAssertEqual(BindingMigrations.collapseRedundantFourFinger([b(3, enabled: false), b(4)]).count, 2)
         XCTAssertEqual(BindingMigrations.collapseRedundantFourFinger([b(3), b(4, kind: .tap)]).count, 2)
     }
+
+    func testCollapseDisabledCopies() {
+        let on = b(3), off = b(3, enabled: false)
+        XCTAssertEqual(BindingMigrations.collapseRedundantDisabledCopies([on, off]).map { $0.id }, [on.id])
+        // Farklı eylem, farklı kapsam, açık eş yok: kalır.
+        XCTAssertEqual(BindingMigrations.collapseRedundantDisabledCopies([on, b(3, .back, enabled: false)]).count, 2)
+        XCTAssertEqual(BindingMigrations.collapseRedundantDisabledCopies([on, b(3, scope: "com.x", enabled: false)]).count, 2)
+        XCTAssertEqual(BindingMigrations.collapseRedundantDisabledCopies([off]).count, 1)
+        // Temel ise kalır.
+        let built = GestureBinding(trigger: Trigger(kind: .press, fingers: 3), action: .middleClick, enabled: false, builtInKey: "three-finger")
+        XCTAssertEqual(BindingMigrations.collapseRedundantDisabledCopies([on, built]).count, 2)
+    }
+
+    func testCollapseDisabledCopyWithBuiltInTwin() {
+        let built = GestureBinding(trigger: Trigger(kind: .press, fingers: 3), action: .middleClick, enabled: false, builtInKey: "three-finger")
+        let copy = b(3, enabled: false)
+        XCTAssertEqual(BindingMigrations.collapseRedundantDisabledCopies([built, copy]).map { $0.id }, [built.id])
+        let diff = b(3, .back, enabled: false)
+        XCTAssertEqual(BindingMigrations.collapseRedundantDisabledCopies([built, diff]).count, 2)
+    }
 }

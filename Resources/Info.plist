@@ -22,6 +22,8 @@
     <string>15.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>BetterTouchTool'daki Magic Mouse atamalarını yalnız okumak için.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>

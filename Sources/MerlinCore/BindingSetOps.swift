@@ -23,6 +23,7 @@ public enum BindingSetOps {
         }
         if binding.enabled {
             removeDisabledRivals(of: binding, in: &out)
+            removeOpenRivals(of: binding, in: &out)
             disableRivals(of: binding, in: &out)
         }
         return out
@@ -38,6 +39,13 @@ public enum BindingSetOps {
     private static func removeDisabledRivals(of b: GestureBinding, in list: inout [GestureBinding]) {
         let t = b.trigger.normalized
         list.removeAll { $0.id != b.id && !$0.enabled && !$0.isBuiltIn && $0.appBundleID == b.appBundleID && $0.trigger.normalized == t }
+    }
+
+    /// Aynı tetik + kapsamdaki açık, temel olmayan diğer atamalar da yeni atamanın yerine geçer (kaldırılır);
+    /// açık temel atama burada kalır ve `disableRivals` ile yalnız kapatılır.
+    private static func removeOpenRivals(of b: GestureBinding, in list: inout [GestureBinding]) {
+        let t = b.trigger.normalized
+        list.removeAll { $0.id != b.id && $0.enabled && !$0.isBuiltIn && $0.appBundleID == b.appBundleID && $0.trigger.normalized == t }
     }
 
     private static func disableRivals(of b: GestureBinding, in list: inout [GestureBinding]) {

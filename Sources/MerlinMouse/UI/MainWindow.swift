@@ -4,7 +4,7 @@ import MerlinCore
 /// Ayarların düzenlendiği ana pencere.
 struct MainWindow: View {
     enum Page: String, CaseIterable, Identifiable {
-        case gestures, profiles, scroll, system, general
+        case gestures, profiles, scroll, system, migration, general
         var id: String { rawValue }
         var title: String {
             switch self {
@@ -12,6 +12,7 @@ struct MainWindow: View {
             case .profiles: return "Uygulama profilleri"
             case .scroll: return "Kaydırma"
             case .system: return "Sistem hareketleri"
+            case .migration: return "BTT'den geçiş"
             case .general: return "Genel"
             }
         }
@@ -21,6 +22,7 @@ struct MainWindow: View {
             case .profiles: return "square.grid.2x2"
             case .scroll: return "arrow.up.and.down"
             case .system: return "shield"
+            case .migration: return "arrow.left.arrow.right"
             case .general: return "gearshape"
             }
         }
@@ -130,6 +132,7 @@ struct MainWindow: View {
         case .profiles: ProfilesPage()
         case .scroll: ScrollPage()
         case .system: SystemPage()
+        case .migration: MigrationPage()
         case .general: GeneralPage()
         }
     }

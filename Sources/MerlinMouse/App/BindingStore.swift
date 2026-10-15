@@ -43,6 +43,14 @@ final class BindingStore: ObservableObject {
             file.save(loaded)
             Log.write("Temel hareketler işaretlendi: \(n)")
         }
+        // Açık eşi olan gereksiz kapalı kopyaları temizle.
+        let deduped = BindingMigrations.collapseRedundantDisabledCopies(loaded.bindings)
+        if deduped.count != loaded.bindings.count {
+            let removed = loaded.bindings.count - deduped.count
+            loaded.bindings = deduped
+            file.save(loaded)
+            Log.write("Gereksiz kapalı kopyalar kaldırıldı: \(removed)")
+        }
         set = loaded
         index = BindingIndex(bindings: loaded.bindings)
         if let name = file.lastRecoveredBackupName {

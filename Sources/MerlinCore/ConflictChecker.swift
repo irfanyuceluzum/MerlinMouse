@@ -86,12 +86,15 @@ public enum ConflictChecker {
                                 detail: "Bu tetik şimdilik çalışmaz."))
         }
 
-        let dup = among.contains {
+        let dup = among.first {
             $0.id != binding.id && $0.enabled && $0.appBundleID == binding.appBundleID && $0.trigger.normalized == t
         }
-        if dup {
+        if let dup {
+            let detail = dup.isBuiltIn
+                ? "Kaydedersen temel '\(dup.action.title)' ataması kapatılır; istediğinde yeniden açabilirsin."
+                : "Kaydedersen önceki '\(dup.action.title)' ataması silinir ve yerine bu geçer."
             out.append(Conflict(level: .duplicate, title: "Aynı tetik zaten atanmış",
-                                detail: "Bu kapsamda aynı tetiğe başka bir atama var."))
+                                detail: detail, subject: dup.action.title, keepsRival: dup.isBuiltIn))
         }
 
         // Kapalı rakip varsa (açık rakip olsa da) kayıtta silineceği için her zaman bildirilir.

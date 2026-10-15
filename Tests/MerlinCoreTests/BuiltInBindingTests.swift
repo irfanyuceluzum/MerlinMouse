@@ -119,4 +119,31 @@ final class BuiltInBindingTests: XCTestCase {
         let user = GestureBinding(trigger: b.trigger, action: .back, appBundleID: "com.x", appName: "X")
         XCTAssertEqual(BindingSetOps.upsert(user, in: [])[0].appBundleID, "com.x")
     }
+
+    func testUpsertRemovesOpenNonBuiltInRival() {
+        let t = Trigger(kind: .press, fingers: 3)
+        let old = plain(t, .back), n = plain(t, .middleClick)
+        let out = BindingSetOps.upsert(n, in: [old])
+        XCTAssertEqual(out.map(\.id), [n.id])
+        let built = GestureBinding(trigger: t.normalized, action: .back, builtInKey: "three-finger")
+        let out2 = BindingSetOps.upsert(n, in: [built])
+        XCTAssertEqual(out2.count, 2)
+        XCTAssertFalse(out2.first { $0.id == built.id }!.enabled)
+        let builtOff = GestureBinding(trigger: t.normalized, action: .back, enabled: false, builtInKey: "three-finger")
+        XCTAssertEqual(BindingSetOps.upsert(n, in: [builtOff]).count, 2)
+    }
+
+    func testDuplicateDetailAndNotice() {
+        let t = Trigger(kind: .press, fingers: 3)
+        let old = plain(t, .back), n = plain(t)
+        let c1 = ConflictChecker.check(n, among: [old, n], env: env).first { $0.level == .duplicate }
+        XCTAssertEqual(c1?.detail, "Kaydedersen önceki '\(old.action.title)' ataması silinir ve yerine bu geçer.")
+        XCTAssertEqual(BindingValidation.removalNotice(conflicts: ConflictChecker.check(n, among: [old, n], env: env)),
+                       "Kaydedersen '\(old.action.title)' ataması silinir ve yerine bu geçer.")
+        let built = GestureBinding(trigger: t.normalized, action: .back, builtInKey: "three-finger")
+        let conflicts = ConflictChecker.check(n, among: [built, n], env: env)
+        XCTAssertEqual(conflicts.first { $0.level == .duplicate }?.detail,
+                       "Kaydedersen temel '\(built.action.title)' ataması kapatılır; istediğinde yeniden açabilirsin.")
+        XCTAssertNil(BindingValidation.removalNotice(conflicts: conflicts))
+    }
 }

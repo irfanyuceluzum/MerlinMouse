@@ -102,8 +102,10 @@ struct BindingListView: View {
         let trigger: CGFloat, action: CGFloat, status: CGFloat
         init(total: CGFloat) {
             let avail = max(300, total - 40 - 6 * 12 - 56 - Columns.editWidth - Columns.trashWidth - Columns.chevronWidth)
-            let unit = avail / 5.1
-            trigger = unit * 2.2; action = unit * 1.5; status = unit * 1.4
+            // Durum sütunu en uzun rozeti ("macOS ile çakışıyor") sığdıracak kadar geniş kalır.
+            let st = max(avail / 5.1 * 1.4, 176)
+            let unit = (avail - st) / 3.9
+            trigger = unit * 2.6; action = unit * 1.3; status = st
         }
     }
 
@@ -132,18 +134,19 @@ struct BindingListView: View {
         let kind = BindingStatus.kind(enabled: b.enabled, conflicts: conflicts)
         let sub = subtitle(b, conflicts: conflicts, kind: kind)
         return HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(b.trigger.title).font(.system(size: 13.5, weight: .medium)).foregroundStyle(MM.text)
+                    .lineLimit(1).minimumScaleFactor(0.85)
                 HStack(spacing: 6) {
-                    Text(b.trigger.title).font(.system(size: 13.5, weight: .medium)).foregroundStyle(MM.text)
                     if b.isBuiltIn { builtInTag }
+                    Text(sub.0).font(.system(size: 12)).foregroundStyle(sub.1 ? MM.warnText : MM.text2)
+                        .lineLimit(2)
                 }
-                Text(sub.0).font(.system(size: 12)).foregroundStyle(sub.1 ? MM.warnText : MM.text2)
-                    .lineLimit(2)
             }
             .frame(width: cols.trigger, alignment: .leading)
             Text(b.action.title).font(.system(size: 13.5)).foregroundStyle(MM.text)
                 .frame(width: cols.action, alignment: .leading)
-            MMStatusBadge(kind: kind, label: kind == .blocked ? blockedLabel(conflicts) : nil)
+            MMStatusBadge(kind: kind, label: kind == .blocked ? blockedLabel(conflicts) : (kind == .replacesDisabled ? "Kapalı kopya" : nil))
                 .frame(width: cols.status, alignment: .leading)
             MMSwitch(isOn: Binding(get: { b.enabled }, set: { store.setEnabled(id: b.id, $0) }),
                      label: "\(b.trigger.title) hareketi")

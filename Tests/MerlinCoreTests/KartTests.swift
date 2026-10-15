@@ -87,9 +87,10 @@ final class KartTests: XCTestCase {
         let a = b(t)
         let n = b(t)
         let out = BindingSetOps.upsert(n, in: [a])
-        XCTAssertEqual(out.map(\.enabled), [false, true])
-        var edited = out[1]; edited.enabled = false
-        XCTAssertEqual(BindingSetOps.upsert(edited, in: out).map(\.enabled), [false, false])
+        // Açık, temel olmayan rakip artık kaldırılır (kapalı kopya bırakılmaz).
+        XCTAssertEqual(out.map(\.enabled), [true])
+        var edited = out[0]; edited.enabled = false
+        XCTAssertEqual(BindingSetOps.upsert(edited, in: out).map(\.enabled), [false])
     }
 
     // 5
@@ -219,8 +220,8 @@ final class KartTests: XCTestCase {
         let off = b(t, enabled: false), on = b(t), offApp = b(t, app: "com.a", enabled: false)
         let n = b(t)
         let out = BindingSetOps.upsert(n, in: [off, on, offApp])
-        XCTAssertEqual(out.map(\.id), [on.id, offApp.id, n.id])
-        XCTAssertEqual(out.map(\.enabled), [false, false, true])
+        XCTAssertEqual(out.map(\.id), [offApp.id, n.id])
+        XCTAssertEqual(out.map(\.enabled), [false, true])
         // Kapalı kayıt hiçbir şey kaldırmaz.
         var closed = b(t); closed.enabled = false
         XCTAssertEqual(BindingSetOps.upsert(closed, in: [off]).count, 2)
