@@ -1,0 +1,4 @@
+.build/
+build/
+.claude/tmp/
+.DS_Store
