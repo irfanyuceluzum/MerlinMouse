@@ -17,7 +17,11 @@ struct PanelView: View {
             VStack(alignment: .leading, spacing: 10) {
                 if !model.trusted {
                     MMBanner(kind: .warning, title: L("Erişilebilirlik izni gerekli"),
-                             actionTitle: L("Ayarları aç")) { model.openAccessibilitySettings() }
+                             actionTitle: L("Ayarları aç")) {
+                        // Panel, açılan Sistem Ayarları'nın önünde kalmasın.
+                        NSApp.keyWindow?.close()
+                        model.requestPermission()
+                    }
                 }
                 if model.isPaused, let until = s.pausedUntil {
                     MMBanner(kind: .info, title: LF("%@'e kadar duraklatıldı", Self.timeText(until)),

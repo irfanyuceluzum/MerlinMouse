@@ -566,3 +566,5 @@
 "3D programlarda tekerlekle yakınlaştırır; gerekirse bir tuşla birlikte." = "Zooms with the scroll wheel in 3D apps, with a key held if needed.";
 "Uygulamanın kendi ⌘+ / ⌘− komutunu kullanır; tarayıcıda bütün sayfayı büyütür." = "Uses the app's own ⌘+ / ⌘− command; in a browser it zooms the whole page.";
 "Çimdikleme bu profilde fare tekerleği gönderir." = "In this profile, pinch sends the mouse wheel.";
+"Erişilebilirlik izni kaldırıldı" = "Accessibility permission was removed";
+"Merlin Mouse hareketleri şu an dönüştüremiyor. İzni yeniden vermek için menü çubuğundaki Merlin Mouse simgesine tıkla." = "Merlin Mouse can't convert gestures right now. Click the Merlin Mouse icon in the menu bar to grant the permission again.";

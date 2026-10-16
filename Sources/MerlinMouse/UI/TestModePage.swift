@@ -22,7 +22,7 @@ struct TestModePage: View {
                              subtitle: L("Parmaklarının hangi bölgede algılandığını ve hangi hareketin tetiklendiğini canlı gör; bölge sınırlarını sürükleyerek ayarla."))
                 if !model.trusted {
                     MMBanner(kind: .warning, title: L("Erişilebilirlik izni gerekli"),
-                             actionTitle: L("Ayarları aç")) { model.openAccessibilitySettings() }
+                             actionTitle: L("Ayarları aç")) { model.requestPermission() }
                 }
                 HStack(alignment: .top, spacing: 20) {
                     MMCard(padding: 20) {

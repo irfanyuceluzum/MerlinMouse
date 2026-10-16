@@ -36,7 +36,7 @@ struct GesturesPage: View {
                      message: (model.permissionHelp.map { $0 + "\n" } ?? "")
                         + L("Tıklamaları orta tuşa çevirebilmek için Merlin Mouse'a izin ver. Listede açık görünüyorsa ama çalışmıyorsa: uygulama yeniden derlendiği için eski kayıt geçersizdir."),
                      actionTitle: L("İzni sıfırla ve yeniden iste")) { model.resetAccessibilityPermission() }
-                .secondary(L("Ayarları aç")) { model.openAccessibilitySettings() }
+                .secondary(L("Ayarları aç")) { model.requestPermission() }
         }
         if let notice = store.recoveryNotice {
             MMBanner(kind: .info, title: notice, actionTitle: L("Tamam")) { store.dismissRecoveryNotice() }

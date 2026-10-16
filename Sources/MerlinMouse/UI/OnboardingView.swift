@@ -108,7 +108,7 @@ struct OnboardingView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 10) {
-                MMSecondaryButton(L("Ayarları aç")) { model.openAccessibilitySettings() }
+                MMSecondaryButton(L("Ayarları aç")) { model.requestPermission() }
                 MMSecondaryButton(L("İzni sıfırla ve yeniden iste")) { model.resetAccessibilityPermission() }
             }
         }

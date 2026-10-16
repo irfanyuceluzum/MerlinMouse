@@ -71,7 +71,7 @@ struct GeneralPage: View {
                     row(L("İzin"), L("Tıklamaları dönüştürmek için gerekir. Listede açık görünüyorsa ama çalışmıyorsa: uygulama yeniden derlendiği için eski kayıt geçersizdir.")) {
                         HStack(spacing: 10) {
                             statusChip(model.trusted ? L("Verildi") : L("Verilmedi"), ok: model.trusted)
-                            MMSecondaryButton(L("Ayarları aç")) { model.openAccessibilitySettings() }
+                            MMSecondaryButton(L("Ayarları aç")) { model.requestPermission() }
                             MMSecondaryButton(L("İzni sıfırla ve yeniden iste")) { model.resetAccessibilityPermission() }
                         }
                     }
