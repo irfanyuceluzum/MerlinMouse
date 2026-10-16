@@ -65,6 +65,20 @@ public struct BindingIndex {
         return tb.globalShapes.contains(s)
     }
 
+    /// Öndeki uygulama için bu aygıtta eşleşebilecek (açık) bir atama var mı: genel ya da o uygulamaya özel.
+    public func hasBindings(device: InputDeviceKind, bundleID: String?) -> Bool {
+        guard let tb = tables[device] else { return false }
+        if !tb.global.isEmpty { return true }
+        if let id = bundleID, let app = tb.perApp[id], !app.isEmpty { return true }
+        return false
+    }
+
+    /// Bu aygıtta herhangi bir kapsamda açık atama var mı.
+    public func hasAnyBinding(device: InputDeviceKind) -> Bool {
+        guard let tb = tables[device] else { return false }
+        return !tb.global.isEmpty || tb.perApp.values.contains { !$0.isEmpty }
+    }
+
     public func hasDoubleTap(fingers: Int, zone: Zone = .any, bundleID: String? = nil,
                              device: InputDeviceKind = .magicMouse) -> Bool {
         if hasBinding(kind: .doubleTap, fingers: fingers, zone: zone, bundleID: bundleID, device: device) { return true }

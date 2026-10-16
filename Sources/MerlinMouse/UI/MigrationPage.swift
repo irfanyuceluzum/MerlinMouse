@@ -121,7 +121,7 @@ struct MigrationPage: View {
             }
             let probe = GestureBinding(trigger: t, action: a, enabled: true)
             let exists = item.enabled && store.bindings.contains {
-                $0.enabled && $0.appBundleID == nil && $0.trigger.normalized == t.normalized
+                $0.enabled && $0.appBundleID == nil && $0.device == .magicMouse && $0.trigger.normalized == t.normalized
             }
             let conflicts = ConflictChecker.check(probe, among: store.bindings, env: env)
             if let hard = conflicts.first(where: { $0.level.blocksSave && $0.level != .duplicate }) {

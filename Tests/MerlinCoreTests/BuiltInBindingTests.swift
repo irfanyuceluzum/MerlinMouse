@@ -28,8 +28,8 @@ final class BuiltInBindingTests: XCTestCase {
     }
 
     func testEdgeDefinitions() {
-        XCTAssertEqual(DefaultBindings.definitions.suffix(3).map(\.key), ["pinch", "edge-left", "edge-right"])
-        XCTAssertEqual(DefaultBindings.laterKeys, ["pinch", "edge-left", "edge-right"])
+        XCTAssertEqual(DefaultBindings.definitions.dropFirst(5).prefix(3).map(\.key), ["pinch", "edge-left", "edge-right"])
+        XCTAssertEqual(DefaultBindings.laterKeys, ["pinch", "edge-left", "edge-right", "tp-tap3", "tp-press3"])
         let left = DefaultBindings.definitions.first { $0.key == "edge-left" }
         let right = DefaultBindings.definitions.first { $0.key == "edge-right" }
         XCTAssertEqual(left?.trigger, Trigger(kind: .edgeSlide, zone: .leftEdge).normalized)

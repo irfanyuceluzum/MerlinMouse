@@ -55,6 +55,10 @@ struct MainWindow: View {
         .frame(minWidth: 900, minHeight: 600)
         .background(MM.win)
         .tint(MM.accent)
+        // Düzenlenen aygıt: üst çubukta değişen tek alan; aygıta bağlı bütün sayfalar onu izler.
+        .toolbar {
+            ToolbarItem(placement: .principal) { EditingDevicePicker() }
+        }
         .onAppear {
             system.refresh()
             NSApp.setActivationPolicy(.regular)
@@ -95,12 +99,22 @@ struct MainWindow: View {
         // Sistem hareketleri rozeti: açık macOS hareketleri + çalışan diğer fare uygulamaları.
         let systemCount = p == .system
             ? system.onCount + model.warnings.filter { $0.source == .otherApp }.count : 0
+        // Kaydırma ayarları yalnız Magic Mouse içindir: trackpad seçiliyken soluk ve etiketli (yine tıklanabilir).
+        let mouseOnly = p == .scroll && settings.editingDevice == .trackpad
         return Button { page = p } label: {
             HStack(spacing: 10) {
                 Image(systemName: p.icon).font(.system(size: 14, weight: .regular)).frame(width: 18)
                 Text(p.title).font(.system(size: 13, weight: selected ? .medium : .regular))
                     .lineLimit(1).minimumScaleFactor(0.85)
+                    .opacity(mouseOnly && !selected ? 0.55 : 1)
                 Spacer(minLength: 4)
+                if mouseOnly {
+                    Text(L("yalnız fare")).font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(selected ? MM.accentInk : MM.neuText)
+                        .padding(.horizontal, 6).padding(.vertical, 1)
+                        .background(selected ? Color.white.opacity(0.2) : MM.neuBg, in: Capsule())
+                        .fixedSize()
+                }
                 if systemCount > 0 {
                     Text("\(systemCount)")
                         .font(.system(size: 11.5, weight: .semibold))
@@ -120,7 +134,31 @@ struct MainWindow: View {
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
-    private var statusCard: some View {
+    @ViewBuilder private var statusCard: some View {
+        if settings.editingDevice == .trackpad { trackpadStatusCard } else { mouseStatusCard }
+    }
+
+    /// Trackpad seçiliyken: atama başlığı ve trackpad bağlantısı (pil satırı yok).
+    private var trackpadStatusCard: some View {
+        let presence = model.devicePresence
+        let on = presence.isPresent(.trackpad)
+        let name = presence.builtInTrackpad ? L("Dahili trackpad") : InputDeviceKind.trackpad.displayName
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                Circle().fill(on ? MM.okDot : MM.togOff).frame(width: 7, height: 7)
+                Text(L("Trackpad atamaları")).font(.system(size: 12, weight: .semibold)).foregroundStyle(MM.text)
+            }
+            Text(verbatim: "\(name) · \(on ? L("bağlı") : L("bağlı değil"))")
+                .font(.system(size: 12)).foregroundStyle(MM.text2)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(MM.card, in: shape)
+        .overlay(shape.strokeBorder(MM.line, lineWidth: 1))
+    }
+
+    private var mouseStatusCard: some View {
         let profile = store.profiles.first { front.bundleID != nil && $0.bundleID == front.bundleID }
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         return VStack(alignment: .leading, spacing: 3) {

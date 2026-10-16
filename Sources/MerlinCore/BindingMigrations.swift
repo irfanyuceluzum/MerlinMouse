@@ -35,13 +35,13 @@ public enum BindingMigrations {
 
     /// Hiç anahtar taşımayan her temel tanım için, genel kapsamda tanımın tetiğine sahip bir atamayı
     /// (önce açık olanı, yoksa ilkini) temel olarak işaretler. Eylem aranmaz; kullanıcı değiştirmiş olabilir.
-    /// Temel hareketler yalnız Magic Mouse atamalarıdır.
+    /// Aday yalnız tanımın aygıtındaki atamalardır (fare tanımına trackpad ataması verilmez, tersi de).
     public static func tagBuiltIns(_ bindings: [GestureBinding]) -> [GestureBinding] {
         var out = bindings
         for d in DefaultBindings.definitions {
             if out.contains(where: { $0.builtInKey == d.key }) { continue }
             let cands = out.indices.filter {
-                out[$0].builtInKey == nil && out[$0].device == .magicMouse && out[$0].appBundleID == nil
+                out[$0].builtInKey == nil && out[$0].device == d.device && out[$0].appBundleID == nil
                     && out[$0].trigger.normalized == d.trigger
             }
             guard let pick = cands.first(where: { out[$0].enabled }) ?? cands.first else { continue }
@@ -50,19 +50,20 @@ public enum BindingMigrations {
         return out
     }
 
-    /// Sonradan eklenen temel atamaları (`DefaultBindings.laterKeys`: çimdikleme, sol ve sağ kenar) genel
-    /// kapsamda, tanımdaki açık/kapalı durumuyla Magic Mouse ataması olarak ekler. O anahtarlı ya da genel
-    /// kapsamda aynı tetikli bir Magic Mouse ataması zaten varsa (kapalı da olsa) dokunmaz. `tagBuiltIns`'ten sonra çağrılır.
+    /// Sonradan eklenen temel atamaları (`DefaultBindings.laterKeys`: çimdikleme, sol ve sağ kenar, trackpad
+    /// üç parmak dokunma / basma) genel kapsamda, tanımdaki açık/kapalı durumu ve aygıtıyla ekler. O anahtarlı ya da
+    /// genel kapsamda aynı aygıtta aynı tetikli bir atama zaten varsa (kapalı da olsa) dokunmaz. `tagBuiltIns`'ten sonra çağrılır.
     public static func addMissingBuiltIns(_ bindings: [GestureBinding]) -> [GestureBinding] {
         var out = bindings
         for key in DefaultBindings.laterKeys {
             guard let d = DefaultBindings.definitions.first(where: { $0.key == key }) else { continue }
             let exists = out.contains {
                 $0.builtInKey == d.key
-                    || ($0.device == .magicMouse && $0.appBundleID == nil && $0.trigger.normalized == d.trigger)
+                    || ($0.device == d.device && $0.appBundleID == nil && $0.trigger.normalized == d.trigger)
             }
             if exists { continue }
-            out.append(GestureBinding(trigger: d.trigger, action: d.action, enabled: d.defaultEnabled, builtInKey: d.key))
+            out.append(GestureBinding(trigger: d.trigger, action: d.action, enabled: d.defaultEnabled,
+                                      builtInKey: d.key, device: d.device))
         }
         return out
     }

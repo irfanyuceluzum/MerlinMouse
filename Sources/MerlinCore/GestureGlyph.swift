@@ -70,6 +70,28 @@ public struct GestureGlyph: Equatable {
     static let labelSize: Double = 9
     static let arrowSize: Double = 10
 
+    // Trackpad gövdesi: kutunun ortasında yatay yuvarlatılmış dikdörtgen.
+    public static let trackpadBodyWidth: Double = 26
+    public static let trackpadBodyHeight: Double = 18
+    public static let trackpadBodyRadius: Double = 4
+    public static var trackpadBodyX: Double { (width - trackpadBodyWidth) / 2 }
+    public static var trackpadBodyY: Double { (height - trackpadBodyHeight) / 2 }
+
+    /// Fare simgesindeki y'yi trackpad gövdesinin ortasına sıkıştırır.
+    public static func trackpadY(_ y: Double) -> Double { 11 + y * 0.5 }
+
+    /// Aygıta göre tarif: trackpad'de noktalar, halkalar ve etiketler gövdenin ortasına sıkıştırılır;
+    /// arka bölge ve kenar şeridi trackpad'de yoktur.
+    public init(trigger: Trigger, device: InputDeviceKind) {
+        self.init(trigger: trigger)
+        guard device == .trackpad else { return }
+        dots = dots.map { GlyphDot(x: $0.x, y: Self.trackpadY($0.y), hollow: $0.hollow) }
+        rings = rings.map { GlyphRing(x: $0.x, y: Self.trackpadY($0.y), radius: $0.radius) }
+        labels = labels.map { GlyphLabel(x: $0.x, y: Self.trackpadY($0.y), text: $0.text, size: $0.size) }
+        rear = false
+        edge = nil
+    }
+
     public init(trigger: Trigger) {
         let t = trigger.normalized
         switch t.kind {

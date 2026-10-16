@@ -109,12 +109,12 @@ struct GeneralPage: View {
                         }
                     }
                     MMDivider()
-                    // Trackpad altyapısı: yalnız varlık gösterilir; trackpad hareketleri henüz işlenmez.
+                    // Trackpad: varlık burada, hareketler Hareketler sayfasının Trackpad sekmesinde.
                     let trackpadOn = presence.isPresent(.trackpad)
                     row(InputDeviceKind.trackpad.displayName,
                         !trackpadOn ? L("Bu Mac'te trackpad yok · ayarlar korunur")
-                            : presence.builtInTrackpad ? L("Dahili trackpad bulundu · trackpad hareketleri yakında")
-                            : L("Trackpad bulundu")) {
+                            : presence.builtInTrackpad ? L("Dahili trackpad bulundu · Trackpad hareketleri Hareketler sayfasında")
+                            : L("Trackpad bulundu · Trackpad hareketleri Hareketler sayfasında")) {
                         statusChip(trackpadOn ? L("Hazır") : L("Pasif"), ok: trackpadOn)
                     }
                     MMDivider()

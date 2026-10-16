@@ -58,18 +58,43 @@ final class PressModule: InputModule {
         }
     }
 
+    /// Denenecek aygıtlar `ClickRouting` ile seçilir. Öndeki uygulama için açık trackpad ataması yoksa
+    /// `ClickSource`'a hiç bakılmaz ve bugünkü fare yolu birebir çalışır. Kaynak trackpad çıkıp trackpad
+    /// eşleşmesi yoksa, farede taze parmak varsa fare yolu da denenir; hiçbiri eşleşmezse olay geçer.
     private func matchBinding(_ type: CGEventType, _ event: CGEvent) -> GestureBinding? {
+        let fnDown = type == .leftMouseDown && event.flags.contains(.maskSecondaryFn)
+        let index = BindingStore.shared.index
+        let bundleID = FrontApp.shared.bundleID
+        guard index.hasBindings(device: .trackpad, bundleID: bundleID) else {
+            return matchMouse(fnDown: fnDown, index: index, bundleID: bundleID)
+        }
+        let snap = TouchMonitor.shared.clickSnapshot()
+        let route = ClickRouting.route(trackpadBindingsActive: true, mouse: snap.mouse,
+                                       trackpad: snap.trackpad, now: snap.now)
+        for device in route {
+            let found: GestureBinding?
+            switch device {
+            case .trackpad:
+                found = PressResolver.trackpadCandidates(fingerCount: snap.trackpad.touches, fnDown: fnDown)
+                    .lazy.compactMap { index.match($0, bundleID: bundleID, device: .trackpad) }.first
+            case .magicMouse:
+                found = matchMouse(fnDown: fnDown, index: index, bundleID: bundleID)
+            }
+            if let found { return found }
+        }
+        return nil
+    }
+
+    /// Bugünkü fare yolu: öndeki parmaklar, kenar şeridi süzmesi, bölgeler.
+    private func matchMouse(fnDown: Bool, index: BindingIndex, bundleID: String?) -> GestureBinding? {
+        let monitor = TouchMonitor.shared
         let s = Settings.shared
         // Avuç içini saymamak için yalnızca öndeki parmaklara bak.
         // Açık kenarın şeridinde duran parmak (örn. başparmak) basışta sayılmaz; kenar kapalıysa süzme yok.
-        let monitor = TouchMonitor.shared
         let points = monitor.excludingEdgeStrips(monitor.touches
             .map { TouchPoint(id: $0.id, x: $0.x, y: $0.front(flipped: s.flipY)) })
-        let fnDown = type == .leftMouseDown && event.flags.contains(.maskSecondaryFn)
         let candidates = PressResolver.candidates(fingers: points, fnDown: fnDown,
                                                   layout: s.zoneLayout)
-        let index = BindingStore.shared.index
-        let bundleID = FrontApp.shared.bundleID
         for trigger in candidates {
             if let binding = index.match(trigger, bundleID: bundleID) { return binding }
         }

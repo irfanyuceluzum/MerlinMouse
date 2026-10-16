@@ -55,7 +55,7 @@ final class BindingMigrationsTests: XCTestCase {
 
     func testAddMissingBuiltInsOnce() {
         let empty = BindingMigrations.addMissingBuiltIns([])
-        XCTAssertEqual(empty.map(\.builtInKey), ["pinch", "edge-left", "edge-right"])
+        XCTAssertEqual(empty.map(\.builtInKey), ["pinch", "edge-left", "edge-right", "tp-tap3", "tp-press3"])
         XCTAssertEqual(empty[0].trigger, Trigger(kind: .pinch, fingers: 2).normalized)
         XCTAssertEqual(empty[0].action, .zoom(style: .gesture, modifiers: []))
         XCTAssertTrue(empty[0].enabled)
@@ -71,8 +71,10 @@ final class BindingMigrationsTests: XCTestCase {
         let old = DefaultBindings.from(legacy: LegacyFlags(zoneClick: true, twoFingerClick: true,
                                                            threeFingerClick: true, threeFingerTap: false, fnDrag: true))
         let once = BindingMigrations.addMissingBuiltIns(old)
-        XCTAssertEqual(once.count, old.count + 3)
-        for key in ["pinch", "edge-left", "edge-right"] { XCTAssertEqual(only(once, key).count, 1, key) }
+        XCTAssertEqual(once.count, old.count + 5)
+        for key in ["pinch", "edge-left", "edge-right", "tp-tap3", "tp-press3"] {
+            XCTAssertEqual(only(once, key).count, 1, key)
+        }
         // İkinci çağrı yinelemez.
         XCTAssertEqual(BindingMigrations.addMissingBuiltIns(once), once)
     }
@@ -82,7 +84,7 @@ final class BindingMigrationsTests: XCTestCase {
         let pinch = GestureBinding(trigger: Trigger(kind: .pinch, fingers: 2), action: .zoom(style: .gesture, modifiers: []),
                                    builtInKey: "pinch")
         let out = BindingMigrations.addMissingBuiltIns([pinch])
-        XCTAssertEqual(out.map(\.builtInKey), ["pinch", "edge-left", "edge-right"])
+        XCTAssertEqual(out.map(\.builtInKey), ["pinch", "edge-left", "edge-right", "tp-tap3", "tp-press3"])
         XCTAssertEqual(out[0], pinch)
     }
 

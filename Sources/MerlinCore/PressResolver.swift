@@ -36,4 +36,17 @@ public enum PressResolver {
         }
         return out
     }
+
+    /// Trackpad basışı: bölge ve ön/arka ayrımı yok, tüm parmaklar sayılır. Fn hesabı fareyle aynıdır;
+    /// tek parmak normal tıklamadır (aday yok), 2+ parmak en çok 4 olarak aday olur.
+    public static func trackpadCandidates(fingerCount n: Int, fnDown: Bool) -> [Trigger] {
+        var out: [Trigger] = []
+        if fnDown {
+            out.append(Trigger(kind: .press, fingers: 0, modifier: .fn))
+        }
+        if n >= 2 {
+            out.append(Trigger(kind: .press, fingers: min(n, 4)))
+        }
+        return out
+    }
 }

@@ -4,16 +4,20 @@ import MerlinCore
 
 extension GestureBinding: Identifiable {}
 
-/// Verilen kapsamdaki atamaların kart listesi (nil = genel; aksi uygulama kimliği, altbilgisiz).
+/// Verilen kapsam ve aygıttaki atamaların kart listesi (nil = genel; aksi uygulama kimliği, altbilgisiz).
 struct BindingListView: View {
     let scope: String?
+    /// Listelenen aygıt; her aygıtın atamaları kendi sekmesinde.
+    var device: InputDeviceKind = .magicMouse
+    /// Aygıt bağlı değil: satırlar soluk, anahtarlar devre dışı, durum "Pasif" (ayarlar korunur).
+    var passive: Bool = false
     @ObservedObject private var store = BindingStore.shared
     @State private var editing: GestureBinding?
     @State private var deleting: GestureBinding?
     @State private var resetting: GestureBinding?
     @State private var hovered: UUID?
 
-    private var items: [GestureBinding] { store.bindings.filter { $0.appBundleID == scope } }
+    private var items: [GestureBinding] { store.bindings.filter { $0.appBundleID == scope && $0.device == device } }
 
     var body: some View {
         let env = AppModel.shared.conflictEnvironment()
@@ -78,9 +82,14 @@ struct BindingListView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 Image(systemName: "info.circle").font(.system(size: 13, weight: .medium))
-                Text(L("Orta tuşla sürüklerken Magic Mouse kaydırması engellenir, model istemeden yakınlaşmaz."))
+                if device == .trackpad {
+                    Text(L("Trackpad hareketleri varsayılan olarak kapalı gelir. Üç parmakla dokunma 3D programlarda orta tıklama için en rahat seçenektir."))
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(L("Orta tuşla sürüklerken Magic Mouse kaydırması engellenir, model istemeden yakınlaşmaz."))
+                }
             }
-            if !store.set.preserved.isEmpty {
+            if device == .magicMouse, !store.set.preserved.isEmpty {
                 HStack(spacing: 10) {
                     Image(systemName: "archivebox").font(.system(size: 13, weight: .medium))
                     Text(LF("Bu sürümün tanımadığı %lld atama korunuyor", store.set.preserved.count))
@@ -140,7 +149,7 @@ struct BindingListView: View {
         let sub = subtitle(b, conflicts: conflicts, kind: kind)
         return HStack(spacing: 12) {
             HStack(spacing: 10) {
-                GestureGlyphView(trigger: b.trigger)
+                GestureGlyphView(trigger: b.trigger, device: b.device)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(b.trigger.title).font(.system(size: 13.5, weight: .medium)).foregroundStyle(MM.text)
                         .lineLimit(1).minimumScaleFactor(0.85)
@@ -155,10 +164,17 @@ struct BindingListView: View {
             .frame(width: Columns.glyphWidth + cols.trigger, alignment: .leading)
             Text(b.action.title).font(.system(size: 13.5)).foregroundStyle(MM.text)
                 .frame(width: cols.action, alignment: .leading)
-            MMStatusBadge(kind: kind, label: kind == .blocked ? blockedLabel(conflicts) : (kind == .replacesDisabled ? L("Kapalı kopya") : nil))
-                .frame(width: cols.status, alignment: .leading)
+            Group {
+                if passive {
+                    passiveBadge
+                } else {
+                    MMStatusBadge(kind: kind, label: kind == .blocked ? blockedLabel(conflicts) : (kind == .replacesDisabled ? L("Kapalı kopya") : nil))
+                }
+            }
+            .frame(width: cols.status, alignment: .leading)
             MMSwitch(isOn: Binding(get: { b.enabled }, set: { store.setEnabled(id: b.id, $0) }),
                      label: LF("%@ hareketi", b.trigger.title))
+                .disabled(passive)
                 .frame(width: 56, alignment: .leading)
             Button { editing = b } label: {
                 HStack(spacing: 5) {
@@ -192,8 +208,9 @@ struct BindingListView: View {
                 .foregroundStyle(MM.text2).frame(width: Columns.chevronWidth)
         }
         .padding(.horizontal, 20).padding(.vertical, 14)
+        .opacity(passive ? 0.5 : 1)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(hovered == b.id ? MM.card2 : (kind == .macOS ? MM.warnBg : Color.clear))
+        .background(hovered == b.id ? MM.card2 : (kind == .macOS && !passive ? MM.warnBg : Color.clear))
         .overlay(alignment: .bottom) { Rectangle().fill(MM.line2).frame(height: 1) }
         .contentShape(Rectangle())
         .onHover { inside in
@@ -213,6 +230,18 @@ struct BindingListView: View {
                 Button(L("Sil"), role: .destructive) { deleting = b }
             }
         }
+    }
+
+    /// Aygıt bağlı değilken satır durumu.
+    private var passiveBadge: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "pause.circle").font(.system(size: 10, weight: .bold))
+            Text(L("Pasif")).font(.system(size: 12, weight: .semibold)).lineLimit(1).fixedSize()
+        }
+        .foregroundStyle(MM.neuText)
+        .padding(.horizontal, 10).padding(.vertical, 3)
+        .background(MM.neuBg, in: Capsule())
+        .fixedSize()
     }
 
     private var builtInTag: some View {

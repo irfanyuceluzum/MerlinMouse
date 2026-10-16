@@ -55,6 +55,8 @@ final class Settings: ObservableObject {
     @Published var appearance: String { didSet { save(appearance, "appearance"); applyAppearance() } }
     /// "system", "tr" veya "en"; "system" Mac'in dilini izler.
     @Published var language: String { didSet { save(language, "language"); Localization.apply() } }
+    /// Ana pencerede düzenlenen aygıt (üst çubuktaki seçici); aygıta bağlı sayfalar bunu izler.
+    @Published var editingDevice: InputDeviceKind { didSet { save(editingDevice.rawValue, "editingDevice") } }
 
     private init() {
         defaults.register(defaults: [
@@ -100,6 +102,7 @@ final class Settings: ObservableObject {
         batteryAlertsEnabled = defaults.bool(forKey: "batteryAlertsEnabled")
         appearance = defaults.string(forKey: "appearance") ?? "system"
         language = defaults.string(forKey: "language") ?? "system"
+        editingDevice = defaults.string(forKey: "editingDevice").flatMap(InputDeviceKind.init(rawValue:)) ?? .magicMouse
         if let until = defaults.object(forKey: "pausedUntil") as? Date, until > Date() {
             pausedUntil = until
         } else {

@@ -41,10 +41,37 @@ public struct ConflictEnvironment: Equatable {
     public var oneFingerHorizSwipePages: Int
     public var controlScrollZoom: Bool
 
+    // Trackpad (macOS Trackpad ayarları).
+    /// `Clicking`: tek parmakla dokunarak tıklama.
+    public var trackpadTapToClick: Bool
+    /// `TrackpadThreeFingerTapGesture == 2`: üç parmakla dokunma "Bak".
+    public var threeFingerTapLookup: Bool
+    /// `TrackpadPinch`: çimdikleyerek yakınlaştırma.
+    public var trackpadPinch: Bool
+    /// `TrackpadTwoFingerDoubleTapGesture`: iki parmakla çift dokunma (akıllı büyütme).
+    public var trackpadSmartZoom: Bool
+    /// `TrackpadRotate`: döndürme.
+    public var trackpadRotate: Bool
+    /// `TrackpadThreeFingerHorizSwipeGesture`: 0 kapalı; diğer değerler üç parmakla yatay kaydırma.
+    public var threeFingerHorizSwipe: Int
+    /// `TrackpadThreeFingerVertSwipeGesture`: 0 kapalı; diğer değerler üç parmakla dikey kaydırma.
+    public var threeFingerVertSwipe: Int
+    /// `TrackpadTwoFingerFromRightEdgeSwipeGesture`: sağ kenardan iki parmakla kaydırma (Bildirim Merkezi).
+    public var notificationCenterSwipe: Bool
+    /// `TrackpadFiveFingerPinchGesture`: başparmak ve üç parmakla çimdikleme.
+    public var fiveFingerPinch: Bool
+    /// `TrackpadThreeFingerDrag`: üç parmakla sürükleme (Erişilebilirlik).
+    public var threeFingerDrag: Bool
+
     public init(mouseButtonMode: String? = nil, oneFingerDoubleTap: Int = 0,
                 twoFingerDoubleTap: Int = 0, twoFingerHorizSwipe: Int = 0,
                 bttRunning: Bool = false, oneFingerHorizSwipePages: Int = 0,
-                controlScrollZoom: Bool = false) {
+                controlScrollZoom: Bool = false,
+                trackpadTapToClick: Bool = false, threeFingerTapLookup: Bool = false,
+                trackpadPinch: Bool = false, trackpadSmartZoom: Bool = false, trackpadRotate: Bool = false,
+                threeFingerHorizSwipe: Int = 0, threeFingerVertSwipe: Int = 0,
+                notificationCenterSwipe: Bool = false, fiveFingerPinch: Bool = false,
+                threeFingerDrag: Bool = false) {
         self.oneFingerHorizSwipePages = oneFingerHorizSwipePages
         self.controlScrollZoom = controlScrollZoom
         self.mouseButtonMode = mouseButtonMode
@@ -52,6 +79,16 @@ public struct ConflictEnvironment: Equatable {
         self.twoFingerDoubleTap = twoFingerDoubleTap
         self.twoFingerHorizSwipe = twoFingerHorizSwipe
         self.bttRunning = bttRunning
+        self.trackpadTapToClick = trackpadTapToClick
+        self.threeFingerTapLookup = threeFingerTapLookup
+        self.trackpadPinch = trackpadPinch
+        self.trackpadSmartZoom = trackpadSmartZoom
+        self.trackpadRotate = trackpadRotate
+        self.threeFingerHorizSwipe = threeFingerHorizSwipe
+        self.threeFingerVertSwipe = threeFingerVertSwipe
+        self.notificationCenterSwipe = notificationCenterSwipe
+        self.fiveFingerPinch = fiveFingerPinch
+        self.threeFingerDrag = threeFingerDrag
     }
 }
 
@@ -139,6 +176,28 @@ public enum ConflictChecker {
                                 detail: MerlinText.f("%@'de '%@' yerine bu çalışır.", binding.appName ?? app, g.action.title)))
         }
 
+        // macOS ve BetterTouchTool kuralları aygıta özgüdür: fare kuralları trackpad atamasına uygulanmaz, tersi de.
+        if binding.device == .trackpad {
+            out += trackpadSystemConflicts(t, env: env)
+        } else {
+            out += mouseSystemConflicts(t, env: env)
+        }
+
+        if (t.kind == .tap || t.kind == .doubleTap), t.fingers == 1, t.zone == .rear {
+            out.append(Conflict(level: .caution, title: MerlinText.t("Avuç değerken tetiklenmez"),
+                                detail: MerlinText.t("Avuç değerken tetiklenmez; yalnız parmaklar kalkmışken dokunun.")))
+        }
+
+        if t.kind == .press, t.modifier == .option || t.modifier == .command || t.modifier == .shift {
+            out.append(Conflict(level: .caution, title: MerlinText.t("Uygulamalar bu tuş + tıklamayı kullanır"),
+                                detail: MerlinText.t("Birçok uygulama bu düzenleyiciyle tıklamayı kendi işi için kullanır.")))
+        }
+        return out
+    }
+
+    /// Magic Mouse'a özgü macOS fare ayarı ve BetterTouchTool çakışmaları.
+    private static func mouseSystemConflicts(_ t: Trigger, env: ConflictEnvironment) -> [Conflict] {
+        var out: [Conflict] = []
         if t.kind == .press, t.fingers == 1, t.zone == .right, env.mouseButtonMode == "TwoButton" {
             out.append(Conflict(level: .macOS, title: MerlinText.t("macOS ikincil tıklama"),
                                 detail: MerlinText.t("Fare ayarlarında sağ taraf ikincil tıklama olarak ayarlı.")))
@@ -156,15 +215,31 @@ public enum ConflictChecker {
             out.append(Conflict(level: .btt, title: MerlinText.t("BetterTouchTool'da da atanmış olabilir"),
                                 detail: MerlinText.t("BetterTouchTool çalışıyor; aynı hareket orada da tanımlıysa iki eylem birden tetiklenebilir.")))
         }
+        return out
+    }
 
-        if (t.kind == .tap || t.kind == .doubleTap), t.fingers == 1, t.zone == .rear {
-            out.append(Conflict(level: .caution, title: MerlinText.t("Avuç değerken tetiklenmez"),
-                                detail: MerlinText.t("Avuç değerken tetiklenmez; yalnız parmaklar kalkmışken dokunun.")))
+    /// Trackpad'e özgü macOS Trackpad ayarı çakışmaları (üç parmak hareketleri).
+    private static func trackpadSystemConflicts(_ t: Trigger, env: ConflictEnvironment) -> [Conflict] {
+        var out: [Conflict] = []
+        guard t.fingers == 3, t.modifier == .none else { return out }
+        if t.kind == .tap, env.threeFingerTapLookup {
+            out.append(Conflict(level: .macOS, title: MerlinText.t("macOS Bak"),
+                                detail: MerlinText.t("Üç parmakla dokunma macOS'ta Bak olarak açık; iki eylem birden tetiklenir.")))
         }
-
-        if t.kind == .press, t.modifier == .option || t.modifier == .command || t.modifier == .shift {
-            out.append(Conflict(level: .caution, title: MerlinText.t("Uygulamalar bu tuş + tıklamayı kullanır"),
-                                detail: MerlinText.t("Birçok uygulama bu düzenleyiciyle tıklamayı kendi işi için kullanır.")))
+        if t.kind == .press, env.threeFingerDrag {
+            out.append(Conflict(level: .macOS, title: MerlinText.t("macOS üç parmakla sürükleme"),
+                                detail: MerlinText.t("Üç parmakla sürükleme açık; üç parmakla basma onunla çakışır.")))
+        }
+        if t.kind == .swipe {
+            let horizontal = t.direction == .left || t.direction == .right
+            if horizontal, env.threeFingerHorizSwipe != 0 {
+                out.append(Conflict(level: .macOS, title: MerlinText.t("macOS üç parmakla yatay kaydırma"),
+                                    detail: MerlinText.t("Üç parmakla sola / sağa kaydırma macOS'ta açık.")))
+            }
+            if !horizontal, env.threeFingerVertSwipe != 0 {
+                out.append(Conflict(level: .macOS, title: MerlinText.t("macOS üç parmakla dikey kaydırma"),
+                                    detail: MerlinText.t("Üç parmakla yukarı / aşağı kaydırma macOS'ta açık.")))
+            }
         }
         return out
     }

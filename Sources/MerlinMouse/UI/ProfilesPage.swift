@@ -7,6 +7,8 @@ struct ProfilesPage: View {
     @ObservedObject private var store = BindingStore.shared
     @ObservedObject private var model = AppModel.shared
     @ObservedObject private var front = FrontApp.shared
+    /// Düzenlenen aygıt (üst çubuktaki seçici); liste ve "hareket ekle" ona göre.
+    @ObservedObject private var s = Settings.shared
     /// nil = "Tüm uygulamalar".
     @State private var selection: String?
     @State private var adding = false
@@ -37,7 +39,7 @@ struct ProfilesPage: View {
             detail
         }
         .sheet(isPresented: $adding) {
-            BindingEditorView(existing: nil, presetScope: selectedApp)
+            BindingEditorView(existing: nil, presetScope: selectedApp, device: s.editingDevice)
         }
     }
 
@@ -147,12 +149,15 @@ struct ProfilesPage: View {
                     }
                 }
             }
+            DevicePassiveBanner()
             if apps.isEmpty && app == nil {
                 MMBanner(kind: .info, title: L("Henüz uygulamaya özel profil yok"),
                          message: L("Bir uygulamada genel atamadan farklı davranmak için 'Uygulama ekle' ile başla; o uygulamadaki atamalar genel atamaların önüne geçer."))
             }
             MMSectionLabel(L("Atamalar"))
-            BindingListView(scope: app?.id)
+            // Trackpad bağlı değilse satırlar pasif (Hareketler sayfasıyla aynı); Magic Mouse listesi bugünkü gibi.
+            BindingListView(scope: app?.id, device: s.editingDevice,
+                            passive: s.editingDevice == .trackpad && !model.devicePresence.isPresent(.trackpad))
                 .frame(maxHeight: .infinity)
             if app != nil { testArea }
         }

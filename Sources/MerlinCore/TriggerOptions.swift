@@ -1,11 +1,20 @@
 import Foundation
 
 /// Düzenleyicide sunulan tetik seçenekleri ve geçersiz birleşimleri düzelten kural.
+/// Aygıt verilmezse Magic Mouse seçenekleri döner (bugünkü davranış).
 public enum TriggerOptions {
     /// v1'de "basılı tut" arayüzde yok.
     public static let editableKinds: [GestureKind] = [.press, .tap, .doubleTap, .swipe, .pinch, .edgeSlide]
+    /// Trackpad'de yalnız 3–4 parmakla dokunma, basma ve çift dokunma atanır.
+    public static let trackpadKinds: [GestureKind] = [.tap, .press, .doubleTap]
 
-    public static func fingerChoices(kind: GestureKind) -> [Int] {
+    /// Aygıtın düzenlenebilir türleri.
+    public static func kinds(device: InputDeviceKind) -> [GestureKind] {
+        device == .trackpad ? trackpadKinds : editableKinds
+    }
+
+    public static func fingerChoices(kind: GestureKind, device: InputDeviceKind = .magicMouse) -> [Int] {
+        if device == .trackpad { return trackpadKinds.contains(kind) ? [3, 4] : [] }
         switch kind {
         case .press: return [1, 2, 3, 4]
         case .tap: return [1, 2, 3, 4]
@@ -18,7 +27,10 @@ public enum TriggerOptions {
     }
 
     /// Bölge yalnız tek parmakta ve tuşsuz tetikte seçilir; kenar şeritleri yalnız kenar kaydırmada.
-    public static func zoneChoices(kind: GestureKind, fingers: Int, modifier: PressModifier) -> [Zone] {
+    /// Trackpad'de bölge yoktur.
+    public static func zoneChoices(kind: GestureKind, fingers: Int, modifier: PressModifier,
+                                   device: InputDeviceKind = .magicMouse) -> [Zone] {
+        if device == .trackpad { return [] }
         if kind == .edgeSlide { return [.leftEdge, .rightEdge] }
         guard fingers == 1, modifier == .none else { return [] }
         switch kind {
@@ -29,22 +41,25 @@ public enum TriggerOptions {
         }
     }
 
-    public static func modifierChoices(kind: GestureKind) -> [PressModifier] {
-        kind == .press ? [.none, .fn, .option, .command, .shift] : [.none]
+    /// Trackpad'de tuşlu basma yoktur.
+    public static func modifierChoices(kind: GestureKind, device: InputDeviceKind = .magicMouse) -> [PressModifier] {
+        if device == .trackpad { return [.none] }
+        return kind == .press ? [.none, .fn, .option, .command, .shift] : [.none]
     }
 
     /// Tetiği geçerli seçeneklere çeker ve normalleştirir.
-    public static func sanitize(_ trigger: Trigger) -> Trigger {
+    public static func sanitize(_ trigger: Trigger, device: InputDeviceKind = .magicMouse) -> Trigger {
         var t = trigger
-        if !modifierChoices(kind: t.kind).contains(t.modifier) { t.modifier = .none }
+        if device == .trackpad, !trackpadKinds.contains(t.kind) { t.kind = trackpadKinds[0] }
+        if !modifierChoices(kind: t.kind, device: device).contains(t.modifier) { t.modifier = .none }
         if t.modifier != .none {
             t.fingers = 0
             t.zone = .any
             return t.normalized
         }
-        let fingers = fingerChoices(kind: t.kind)
+        let fingers = fingerChoices(kind: t.kind, device: device)
         if !fingers.isEmpty, !fingers.contains(t.fingers) { t.fingers = fingers[0] }
-        let zones = zoneChoices(kind: t.kind, fingers: t.fingers, modifier: t.modifier)
+        let zones = zoneChoices(kind: t.kind, fingers: t.fingers, modifier: t.modifier, device: device)
         if zones.isEmpty {
             t.zone = .any
         } else if !zones.contains(t.zone) {
@@ -53,9 +68,10 @@ public enum TriggerOptions {
         return t.normalized
     }
 
-    /// Bölge seçilemiyorsa nedeni; açıklama gerekmiyorsa nil.
-    public static func unavailableZoneReason(kind: GestureKind, fingers: Int, modifier: PressModifier) -> String? {
-        guard modifier == .none else { return nil }
+    /// Bölge seçilemiyorsa nedeni; açıklama gerekmiyorsa nil (trackpad'de hiç bölge yok, açıklama da yok).
+    public static func unavailableZoneReason(kind: GestureKind, fingers: Int, modifier: PressModifier,
+                                             device: InputDeviceKind = .magicMouse) -> String? {
+        guard device == .magicMouse, modifier == .none else { return nil }
         switch kind {
         case .press where fingers == 1:
             return MerlinText.t("Sol bölgeye basmak normal sol tıklamadır; değiştirilemez.")
@@ -70,23 +86,39 @@ public enum TriggerOptions {
 
     /// Yeni atama için önerilen tetik: önce çakışmasız, sonra en az engellemeyen aday.
     public static func firstFreeTrigger(among: [GestureBinding], scope: String?,
-                                        env: ConflictEnvironment) -> Trigger {
-        let candidates: [Trigger] = [
-            Trigger(kind: .press, fingers: 1, zone: .right),
-            Trigger(kind: .press, fingers: 2),
-            Trigger(kind: .press, fingers: 3),
-            Trigger(kind: .doubleTap, fingers: 2, zone: .any),
-            Trigger(kind: .tap, fingers: 3),
-            Trigger(kind: .swipe, fingers: 3, direction: .up),
-            Trigger(kind: .swipe, fingers: 3, direction: .down),
-            Trigger(kind: .swipe, fingers: 3, direction: .left),
-            Trigger(kind: .swipe, fingers: 3, direction: .right),
-            Trigger(kind: .press, modifier: .option),
-        ].map { $0.normalized }
+                                        env: ConflictEnvironment,
+                                        device: InputDeviceKind = .magicMouse) -> Trigger {
+        let candidates: [Trigger]
+        let fallback: Trigger
+        if device == .trackpad {
+            candidates = [
+                Trigger(kind: .tap, fingers: 3),
+                Trigger(kind: .press, fingers: 3),
+                Trigger(kind: .doubleTap, fingers: 3),
+                Trigger(kind: .tap, fingers: 4),
+                Trigger(kind: .press, fingers: 4),
+                Trigger(kind: .doubleTap, fingers: 4),
+            ].map { $0.normalized }
+            fallback = Trigger(kind: .tap, fingers: 3)
+        } else {
+            candidates = [
+                Trigger(kind: .press, fingers: 1, zone: .right),
+                Trigger(kind: .press, fingers: 2),
+                Trigger(kind: .press, fingers: 3),
+                Trigger(kind: .doubleTap, fingers: 2, zone: .any),
+                Trigger(kind: .tap, fingers: 3),
+                Trigger(kind: .swipe, fingers: 3, direction: .up),
+                Trigger(kind: .swipe, fingers: 3, direction: .down),
+                Trigger(kind: .swipe, fingers: 3, direction: .left),
+                Trigger(kind: .swipe, fingers: 3, direction: .right),
+                Trigger(kind: .press, modifier: .option),
+            ].map { $0.normalized }
+            fallback = Trigger(kind: .press, fingers: 3)
+        }
         var firstNonBlocking: Trigger?
         var firstReplacing: Trigger?
         for t in candidates {
-            let probe = GestureBinding(trigger: t, action: .middleClick, appBundleID: scope)
+            let probe = GestureBinding(trigger: t, action: .middleClick, appBundleID: scope, device: device)
             let conflicts = ConflictChecker.check(probe, among: among, env: env)
             if conflicts.contains(where: { $0.level.blocksSave }) { continue }
             if conflicts.isEmpty { return t }
@@ -96,6 +128,6 @@ public enum TriggerOptions {
             }
             if firstNonBlocking == nil { firstNonBlocking = t }
         }
-        return firstNonBlocking ?? firstReplacing ?? Trigger(kind: .press, fingers: 3)
+        return firstNonBlocking ?? firstReplacing ?? fallback
     }
 }

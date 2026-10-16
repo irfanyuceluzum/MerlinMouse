@@ -7,7 +7,7 @@ final class AppPresetsTests: XCTestCase {
 
     private var globalDefaults: [GestureBinding] {
         DefaultBindings.definitions.map {
-            GestureBinding(trigger: $0.trigger, action: $0.action, enabled: true, builtInKey: $0.key)
+            GestureBinding(trigger: $0.trigger, action: $0.action, enabled: true, builtInKey: $0.key, device: $0.device)
         }
     }
 

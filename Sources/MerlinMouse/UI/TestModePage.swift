@@ -3,10 +3,16 @@ import MerlinCore
 
 /// Bölgeler: bölge sınırlarının ve kenar şeritlerinin TEK düzenleme yeri; parmakların bölgelerde nasıl
 /// algılandığını ve hangi hareketin tetiklendiğini de canlı gösterir (kuru deneme dahil).
+/// Trackpad seçiliyken solda canlı trackpad haritası (bölge yok), sağda aynı kuru deneme ve günlük; parmak satırları
+/// trackpad parmaklarını gösterir.
 struct TestModePage: View {
     @ObservedObject private var model = AppModel.shared
     @ObservedObject private var s = Settings.shared
+    /// Trackpad parmakları (yalnız canlı harita görünürken yayınlanır).
+    @ObservedObject private var live = TrackpadLiveTouches.shared
     @State private var dryRun = false
+
+    private var trackpad: Bool { s.editingDevice == .trackpad }
     @State private var twoButton = false
 
     private static let timeFormatter: DateFormatter = {
@@ -20,13 +26,16 @@ struct TestModePage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 MMPageHeader(title: L("Bölgeler"),
-                             subtitle: L("Tüm bölgeleri tek haritada ayarla: sınırları ve kenar şeritlerini sürükle, parmaklarınla hemen dene."))
+                             subtitle: trackpad
+                                ? L("Trackpad'deki parmakları canlı izle ve hangi hareketin tetiklendiğini dene.")
+                                : L("Tüm bölgeleri tek haritada ayarla: sınırları ve kenar şeritlerini sürükle, parmaklarınla hemen dene."))
+                DevicePassiveBanner()
                 if !model.trusted {
                     MMBanner(kind: .warning, title: L("Erişilebilirlik izni gerekli"),
                              actionTitle: L("Ayarları aç")) { model.requestPermission() }
                 }
                 HStack(alignment: .top, spacing: 20) {
-                    mapCard
+                    if trackpad { TrackpadZonesCard() } else { mapCard }
                     VStack(spacing: 16) {
                         MMCard {
                             MMSwitchRow(title: L("Kuru deneme"),
@@ -92,7 +101,8 @@ struct TestModePage: View {
 
     private var fingersCard: some View {
         // Kimliğe göre kararlı sıra: aynı parmak satır değiştirmez; fazlası gösterilmez.
-        let touches = Array(model.liveTouches.sorted { $0.id < $1.id }.prefix(Self.fingerSlots))
+        let source = trackpad ? live.touches : model.liveTouches
+        let touches = Array(source.sorted { $0.id < $1.id }.prefix(Self.fingerSlots))
         return MMCard {
             VStack(spacing: 0) {
                 HStack {
@@ -125,7 +135,14 @@ struct TestModePage: View {
             Text(LF("Parmak %lld", i + 1)).font(.system(size: 13, weight: .medium))
                 .foregroundStyle(touch != nil ? MM.text : MM.text2)
             Spacer(minLength: 8)
-            if let t = touch {
+            if let t = touch, trackpad {
+                // Trackpad'de bölge yok: yön çevirme uygulanmaz, bölge sütununda "yüzeyde" yazar.
+                Text(verbatim: "x \(pct(t.x))% · y \(pct(t.y))%")
+                    .font(.system(size: 12, design: .monospaced)).foregroundStyle(MM.text2)
+                Text(L("yüzeyde")).font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(MM.accentText)
+                    .frame(minWidth: 80, alignment: .trailing)
+            } else if let t = touch {
                 let front = t.front(flipped: s.flipY)
                 let zone = Zone.classify(x: t.x, y: front, layout: s.zoneLayout)
                 Text(verbatim: "x \(pct(t.x))% · y \(pct(front))%")

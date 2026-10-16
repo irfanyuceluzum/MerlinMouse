@@ -28,4 +28,18 @@ public enum GesturePresets {
         GesturePreset(title: MerlinText.t("Arkaya (logoya) dokun"), trigger: Trigger(kind: .tap, fingers: 1, zone: .rear)),
         GesturePreset(title: MerlinText.t("Arkaya (logoya) çift dokun"), trigger: Trigger(kind: .doubleTap, fingers: 1, zone: .rear)),
     ] }
+
+    /// Trackpad'in hazır hareketleri: yalnız macOS'un kullanmadığı 3–4 parmak dokunma / basma.
+    public static var trackpad: [GesturePreset] { [
+        GesturePreset(title: MerlinText.t("Üç parmakla dokun"), trigger: Trigger(kind: .tap, fingers: 3)),
+        GesturePreset(title: MerlinText.t("Üç parmakla bas"), trigger: Trigger(kind: .press, fingers: 3)),
+        GesturePreset(title: MerlinText.t("Üç parmakla çift dokun"), trigger: Trigger(kind: .doubleTap, fingers: 3)),
+        GesturePreset(title: MerlinText.t("Dört parmakla dokun"), trigger: Trigger(kind: .tap, fingers: 4)),
+        GesturePreset(title: MerlinText.t("Dört parmakla bas"), trigger: Trigger(kind: .press, fingers: 4)),
+    ] }
+
+    /// Aygıtın hazır hareketleri (Magic Mouse için `all`).
+    public static func presets(for device: InputDeviceKind) -> [GesturePreset] {
+        device == .trackpad ? trackpad : all
+    }
 }

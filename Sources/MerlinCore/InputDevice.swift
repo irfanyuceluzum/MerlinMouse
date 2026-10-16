@@ -1,6 +1,6 @@
 import Foundation
 
-/// Atamanın ait olduğu dokunma aygıtı. Bugün yalnız Magic Mouse işlenir; trackpad altyapısı hazırdır.
+/// Atamanın ait olduğu dokunma aygıtı. Trackpad'de 3–4 parmakla dokunma, basma ve çift dokunma işlenir.
 public enum InputDeviceKind: String, Codable, CaseIterable, Hashable {
     case magicMouse, trackpad
 

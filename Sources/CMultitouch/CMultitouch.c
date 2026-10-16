@@ -43,10 +43,17 @@ static bool gOwned; // gMice aygıtları servisten oluşturuldu (yani bizim bır
 static int gMiceCount;
 static OTFrameHandler gHandler;
 static char gDesc[512];
-// Son taramada görülen tüm aygıtlar (yalnız tanım; trackpad akışı başlatılmaz).
+// Son taramada görülen tüm aygıtlar (tanım).
 #define MAX_DEVICES 16
 static OTDeviceInfo gDevices[MAX_DEVICES];
 static int gDeviceCount;
+// Trackpad akışları: işleyici kuruluysa başlatılır; dizin = Swift'e giden yuva numarası.
+#define MAX_PADS 4
+static MTDeviceRef gPads[MAX_PADS];
+static int gPadCount;
+static OTDeviceFrameHandler gPadHandler;
+static bool gPadsOwned;           // gPads servisten oluşturuldu (bırakmak bizim işimiz)
+static CFMutableArrayRef gPadList; // yedek yolda trackpad'lerin listesi
 
 static bool load(void) {
     static void *handle;
@@ -65,11 +72,10 @@ static bool load(void) {
     return (pCreateList || pCreateFromService) && pRegister && pStart;
 }
 
-static int frameCallback(MTDeviceRef device, MTFinger *fingers, int count, double timestamp, int frame) {
-    (void)device;
-    (void)frame;
-    OTTouch touches[16];
+// En çok 16 parmağı sadeleştirilmiş biçime çevirir; yazılan sayıyı döner.
+static int convert(const MTFinger *fingers, int count, OTTouch *touches) {
     int n = count < 16 ? count : 16;
+    if (n < 0) n = 0;
     for (int i = 0; i < n; i++) {
         touches[i].identifier = fingers[i].identifier;
         touches[i].state = fingers[i].state;
@@ -77,7 +83,30 @@ static int frameCallback(MTDeviceRef device, MTFinger *fingers, int count, doubl
         touches[i].y = fingers[i].normalized.pos.y;
         touches[i].size = fingers[i].size;
     }
+    return n;
+}
+
+static int frameCallback(MTDeviceRef device, MTFinger *fingers, int count, double timestamp, int frame) {
+    (void)device;
+    (void)frame;
+    OTTouch touches[16];
+    int n = convert(fingers, count, touches);
     if (gHandler) gHandler(touches, n, timestamp);
+    return 0;
+}
+
+// Trackpad kareleri: aygıtın yuvası bulunur ve kareyle birlikte iletilir (aygıtlar Swift'te ayrı tutulur).
+static int padFrameCallback(MTDeviceRef device, MTFinger *fingers, int count, double timestamp, int frame) {
+    (void)frame;
+    int slot = -1;
+    for (int i = 0; i < gPadCount; i++) {
+        if (gPads[i] == device) { slot = i; break; }
+    }
+    if (slot < 0) return 0;
+    OTTouch touches[16];
+    int n = convert(fingers, count, touches);
+    OTDeviceFrameHandler handler = gPadHandler;
+    if (handler) handler(slot, touches, n, timestamp);
     return 0;
 }
 
@@ -94,7 +123,8 @@ static bool isMouse(MTDeviceRef device, int *familyOut, bool *builtInOut) {
     return family < 0; // aile okunamadıysa: dahili olmayan aygıtı fare say
 }
 
-void OTMultitouchStop(void) {
+// Yalnız fare akışlarını durdurur (trackpad akışına dokunmaz).
+static void stopMice(void) {
     for (int i = 0; i < gMiceCount; i++) {
         if (pUnregister) pUnregister(gMice[i], frameCallback);
         if (pStop) pStop(gMice[i]);
@@ -106,6 +136,30 @@ void OTMultitouchStop(void) {
         CFRelease(gList);
         gList = NULL;
     }
+}
+
+// Yalnız trackpad akışlarını durdurur.
+static void stopPads(void) {
+    for (int i = 0; i < gPadCount; i++) {
+        if (pUnregister) pUnregister(gPads[i], padFrameCallback);
+        if (pStop) pStop(gPads[i]);
+        if (gPadsOwned && pRelease) pRelease(gPads[i]);
+    }
+    gPadCount = 0;
+    gPadsOwned = false;
+    if (gPadList) {
+        CFRelease(gPadList);
+        gPadList = NULL;
+    }
+}
+
+void OTMultitouchStop(void) {
+    stopMice();
+    stopPads();
+}
+
+void OTMultitouchStopTrackpads(void) {
+    stopPads();
 }
 
 // Açıklamaya ekler ve aygıtı tanım listesine yazar (`started`: fare olarak akışı başlatıldı mı).
@@ -125,6 +179,13 @@ static void startMouse(MTDeviceRef device) {
     pRegister(device, frameCallback);
     pStart(device, 0);
     gMice[gMiceCount++] = device;
+}
+
+static void startPad(MTDeviceRef device) {
+    // Yuva, geri çağrı gelmeden önce yazılır.
+    gPads[gPadCount++] = device;
+    pRegister(device, padFrameCallback);
+    pStart(device, 0);
 }
 
 // IOKit servislerinden: önbellekli MTDeviceCreateList'in aksine her çağrıda güncel aygıtları verir.
@@ -156,6 +217,53 @@ static void startFromServices(void) {
     IOObjectRelease(it);
 }
 
+// Servisteki aygıtın aile kimliği; okunamadıysa -1.
+static int serviceFamily(io_service_t service) {
+    int family = -1;
+    CFTypeRef prop = IORegistryEntryCreateCFProperty(service, CFSTR("Family ID"), kCFAllocatorDefault, 0);
+    if (prop) {
+        if (CFGetTypeID(prop) == CFNumberGetTypeID()) CFNumberGetValue(prop, kCFNumberIntType, &family);
+        CFRelease(prop);
+    }
+    return family;
+}
+
+// Trackpad'ler (fare olmayan aygıtlar) IOKit servislerinden; fare taramasından bağımsız.
+static void padsFromServices(void) {
+    io_iterator_t it = IO_OBJECT_NULL;
+    if (IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("AppleMultitouchDevice"), &it) != KERN_SUCCESS) return;
+    gPadsOwned = true;
+    io_service_t service;
+    while ((service = IOIteratorNext(it)) != IO_OBJECT_NULL) {
+        int family = serviceFamily(service);
+        MTDeviceRef device = pCreateFromService(service);
+        IOObjectRelease(service);
+        if (!device) continue;
+        bool builtIn = false;
+        bool mouse = isMouse(device, &family, &builtIn);
+        if (!mouse && gPadCount < MAX_PADS) {
+            startPad(device);
+        } else if (pRelease) {
+            pRelease(device);
+        }
+    }
+    IOObjectRelease(it);
+}
+
+// Yedek yol: ayrı bir önbellekli liste (fare listesinden bağımsız bırakılır).
+static void padsFromList(void) {
+    gPadList = pCreateList();
+    if (!gPadList) return;
+    CFIndex total = CFArrayGetCount(gPadList);
+    for (CFIndex i = 0; i < total; i++) {
+        MTDeviceRef device = (MTDeviceRef)CFArrayGetValueAtIndex(gPadList, i);
+        int family = -1;
+        bool builtIn = false;
+        bool mouse = isMouse(device, &family, &builtIn);
+        if (!mouse && gPadCount < MAX_PADS) startPad(device);
+    }
+}
+
 // Yedek yol: eski önbellekli liste.
 static void startFromList(void) {
     gList = pCreateList();
@@ -177,13 +285,28 @@ int OTMultitouchStart(OTFrameHandler handler) {
         snprintf(gDesc, sizeof gDesc, "MultitouchSupport yüklenemedi");
         return -1;
     }
-    OTMultitouchStop();
+    // Yalnız fareler yeniden başlar; trackpad akışı ayrı yönetilir.
+    stopMice();
     gHandler = handler;
     gDesc[0] = 0;
     gDeviceCount = 0;
     if (pCreateFromService) startFromServices();
     else if (pCreateList) startFromList();
     return gMiceCount;
+}
+
+int OTMultitouchStartTrackpads(OTDeviceFrameHandler handler) {
+    if (!load()) return -1;
+    stopPads();
+    gPadHandler = handler;
+    if (!handler) return 0;
+    if (pCreateFromService) padsFromServices();
+    else if (pCreateList) padsFromList();
+    return gPadCount;
+}
+
+int OTMultitouchTrackpadCount(void) {
+    return gPadCount;
 }
 
 // --- Aygıt ekleme/çıkarma izleme ---

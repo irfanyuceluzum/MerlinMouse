@@ -56,7 +56,8 @@ final class AppModel: ObservableObject {
         // Olay yakalayıcı başlamadan atamalar yüklensin.
         _ = BindingStore.shared
         TouchMonitor.shared.onFrame = { [weak self] touches in self?.liveTouches = touches }
-        TouchMonitor.shared.onGesture = { GestureDispatcher.handle($0) }
+        TouchMonitor.shared.onTrackpadFrame = { TrackpadLiveTouches.shared.update($0) }
+        TouchMonitor.shared.onGesture = { GestureDispatcher.handle($0, device: $1) }
         TouchMonitor.shared.onPinch = { GestureDispatcher.handlePinch($0) }
         TouchMonitor.shared.onEdge = { GestureDispatcher.handleEdge($0) }
         mouseImage = MouseArtwork.load()
@@ -146,6 +147,13 @@ final class AppModel: ObservableObject {
             index.hasDoubleTap(fingers: fingers, zone: zone, bundleID: bundleID)
                 || (fingers == 4 && index.hasDoubleTap(fingers: 3, zone: zone, bundleID: bundleID))
         }
+        // Trackpad akışı yalnız açık bir trackpad ataması (herhangi bir kapsamda) ya da canlı görünüm varken açıktır.
+        TouchMonitor.shared.setTrackpadBindingsActive(index.hasAnyBinding(device: .trackpad))
+        // Trackpad tanıyıcısı: bölgesiz, yalnız trackpad atamaları.
+        TouchMonitor.shared.configureTrackpad { fingers, _ in
+            index.hasDoubleTap(fingers: fingers, bundleID: bundleID, device: .trackpad)
+                || (fingers == 4 && index.hasDoubleTap(fingers: 3, bundleID: bundleID, device: .trackpad))
+        }
     }
 
     private func tick() {
@@ -157,7 +165,8 @@ final class AppModel: ObservableObject {
             Log.write("Duraklatma bitti")
         }
         // Fare bulunamadıysa (Bluetooth yeni bağlandıysa) 10 sn'de bir yeniden tara.
-        if miceCount <= 0 && ticks % 5 == 0 { startTouches() }
+        // Trackpad akışı bu periyodik taramada yeniden başlatılmaz (süren trackpad dokunuşu bölünmesin).
+        if miceCount <= 0 && ticks % 5 == 0 { startTouches(rescanTrackpads: false) }
         if ticks % 5 == 0 { refreshWarnings() }
     }
 
@@ -182,19 +191,21 @@ final class AppModel: ObservableObject {
         BatteryMonitor.shared.refresh()
     }
 
-    func startTouches() {
+    /// `rescanTrackpads`: trackpad akışı isteniyorsa trackpad'leri de yeniden tara (hot-plug, uyanma, elle tarama).
+    func startTouches(rescanTrackpads: Bool = true) {
         changeLogged = false
         // Aygıt yeniden başlarken kalkış karesi gelmeyebilir; yakınlaştırma ve kenar kaydırma takılı kalmasın.
         GestureDispatcher.endPinchSession()
         GestureDispatcher.endEdgeSession()
-        let found = TouchMonitor.shared.start()
+        let found = TouchMonitor.shared.start(rescanTrackpads: rescanTrackpads)
         if found != miceCount { Log.write("Magic Mouse: \(found) · \(TouchMonitor.shared.deviceDescription)") }
         miceCount = found
         deviceInfo = TouchMonitor.shared.deviceDescription
-        // Aygıt varlığı (fare + trackpad); trackpad yalnız sayılır, akışı başlatılmaz.
+        // Aygıt varlığı (fare + trackpad); trackpad akışı yalnız gerektiğinde açıktır (aygıt sayısı ayrıca yazılır).
         let presence = TouchMonitor.shared.devicePresence(startedMice: found)
         if presence.trackpads != devicePresence.trackpads {
-            Log.write("Trackpad: \(presence.trackpads)\(presence.builtInTrackpad ? " (dahili)" : "")")
+            Log.write("Trackpad: \(presence.trackpads)\(presence.builtInTrackpad ? " (dahili)" : "")"
+                      + " · akış \(TouchMonitor.shared.trackpadStreams)")
         }
         devicePresence = presence
     }
@@ -396,7 +407,17 @@ enum SystemCheck {
         (CFPreferencesCopyAppValue(key as CFString, "com.apple.universalaccess" as CFString) as? NSNumber)?.boolValue ?? false
     }
 
-    /// Güncel macOS fare ayarları ve BetterTouchTool durumu.
+    /// macOS Trackpad ayarı (dahili ve Bluetooth trackpad alanları); yoksa 0.
+    private static func trackpadValue(_ key: String) -> Int {
+        for domain in ["com.apple.AppleMultitouchTrackpad", "com.apple.driver.AppleBluetoothMultitouch.trackpad"] {
+            if let value = CFPreferencesCopyAppValue(key as CFString, domain as CFString) as? NSNumber {
+                return value.intValue
+            }
+        }
+        return 0
+    }
+
+    /// Güncel macOS fare ve trackpad ayarları ve BetterTouchTool durumu.
     static func environment() -> ConflictEnvironment {
         ConflictEnvironment(
             mouseButtonMode: mouseString("MouseButtonMode"),
@@ -406,7 +427,17 @@ enum SystemCheck {
             bttRunning: NSWorkspace.shared.runningApplications
                 .contains { $0.bundleIdentifier == "com.hegenberg.BetterTouchTool" },
             oneFingerHorizSwipePages: globalInt("AppleEnableMouseSwipeNavigateWithScrolls"),
-            controlScrollZoom: universalAccessBool("closeViewScrollWheelToggle"))
+            controlScrollZoom: universalAccessBool("closeViewScrollWheelToggle"),
+            trackpadTapToClick: trackpadValue("Clicking") != 0,
+            threeFingerTapLookup: trackpadValue("TrackpadThreeFingerTapGesture") == 2,
+            trackpadPinch: trackpadValue("TrackpadPinch") != 0,
+            trackpadSmartZoom: trackpadValue("TrackpadTwoFingerDoubleTapGesture") != 0,
+            trackpadRotate: trackpadValue("TrackpadRotate") != 0,
+            threeFingerHorizSwipe: trackpadValue("TrackpadThreeFingerHorizSwipeGesture"),
+            threeFingerVertSwipe: trackpadValue("TrackpadThreeFingerVertSwipeGesture"),
+            notificationCenterSwipe: trackpadValue("TrackpadTwoFingerFromRightEdgeSwipeGesture") != 0,
+            fiveFingerPinch: trackpadValue("TrackpadFiveFingerPinchGesture") != 0,
+            threeFingerDrag: trackpadValue("TrackpadThreeFingerDrag") != 0)
     }
 
     static func warnings(for bindings: [GestureBinding]) -> [Warning] {

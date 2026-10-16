@@ -6,19 +6,29 @@ import MerlinCore
 final class SystemGestureState: ObservableObject {
     static let shared = SystemGestureState()
     @Published private(set) var rows: [SystemGestureRow] = []
+    @Published private(set) var trackpadSections: [TrackpadGestureSection] = []
     private var env = ConflictEnvironment()
-    var onCount: Int { SystemGestureCatalog.conflictCount(env: env) }
+    /// Rozet: açık macOS fare hareketleri; açık bir trackpad ataması varsa trackpad çakışmaları da.
+    var onCount: Int {
+        let mouse = SystemGestureCatalog.conflictCount(env: env)
+        guard BindingStore.shared.index.hasAnyBinding(device: .trackpad) else { return mouse }
+        return mouse + TrackpadGestureCatalog.conflictCount(env: env)
+    }
 
     func refresh() {
         env = AppModel.shared.conflictEnvironment()
         rows = SystemGestureCatalog.rows(env: env)
+        trackpadSections = TrackpadGestureCatalog.sections(env: env)
     }
 }
 
-/// macOS'un fare hareketleri ve Merlin Mouse ile ilişkileri.
+/// macOS'un fare ve trackpad hareketleri ve Merlin Mouse ile ilişkileri.
 struct SystemPage: View {
     @ObservedObject private var state = SystemGestureState.shared
     @ObservedObject private var model = AppModel.shared
+    @ObservedObject private var settings = Settings.shared
+    /// Düzenlenen aygıt üst çubuktaki seçiciden gelir.
+    private var device: InputDeviceKind { settings.editingDevice }
 
     private func isKeyboard(_ r: SystemGestureRow) -> Bool {
         r.gesture.hasPrefix("⌃") || r.gesture.hasPrefix("⌘") || r.gesture == "BetterTouchTool"
@@ -30,34 +40,51 @@ struct SystemPage: View {
     }
 
     var body: some View {
+        let trackpad = device == .trackpad
         VStack(alignment: .leading, spacing: 16) {
             MMPageHeader(title: L("macOS sistem hareketleri"),
-                         subtitle: L("Apple'ın Magic Mouse için ayırdığı hareketler. Açık olanlara atama yapılırsa Merlin Mouse uyarır.")) {
+                         subtitle: trackpad
+                            ? L("Apple'ın trackpad için ayırdığı hareketler. Açık olanlara atama yapılırsa Merlin Mouse uyarır.")
+                            : L("Apple'ın Magic Mouse için ayırdığı hareketler. Açık olanlara atama yapılırsa Merlin Mouse uyarır.")) {
                 HStack(spacing: 8) {
                     MMSecondaryButton(L("Yeniden tara"), "arrow.clockwise") { state.refresh() }
-                    MMPrimaryButton(L("Sistem Ayarları › Fare")) {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.Mouse-Settings.extension") {
+                    MMPrimaryButton(trackpad ? L("Sistem Ayarları › Trackpad") : L("Sistem Ayarları › Fare")) {
+                        let pane = trackpad ? "com.apple.Trackpad-Settings.extension" : "com.apple.Mouse-Settings.extension"
+                        if let url = URL(string: "x-apple.systempreferences:\(pane)") {
                             NSWorkspace.shared.open(url)
                         }
                     }
                 }
             }
+            DevicePassiveBanner()
             statusStrip
             otherAppBanners
-            table
+            if trackpad { trackpadTable } else { table }
         }
         .padding(.horizontal, 32).padding(.vertical, 28)
         .onAppear { state.refresh() }
         .onReceive(Timer.publish(every: 5, on: .main, in: .common).autoconnect()) { _ in state.refresh() }
     }
 
+    private var trackpadName: String {
+        let p = model.devicePresence
+        if !p.isPresent(.trackpad) { return L("Trackpad bağlı değil") }
+        return p.builtInTrackpad ? L("Dahili trackpad") : InputDeviceKind.trackpad.displayName
+    }
+
     private var statusStrip: some View {
         let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         return HStack(spacing: 10) {
             Circle().fill(MM.okDot).frame(width: 8, height: 8)
-            Text(LF("Bu Mac'ten okundu · macOS %@ · Magic Mouse %@ · Ayarlar değişince liste kendiliğinden güncellenir",
-                    osVersion, model.miceCount > 0 ? L("bağlı") : L("bağlı değil")))
-                .font(.system(size: 13)).foregroundStyle(MM.text2)
+            Group {
+                if device == .trackpad {
+                    Text(LF("Bu Mac'ten okundu · %@ · Ayarlar değişince liste kendiliğinden güncellenir", trackpadName))
+                } else {
+                    Text(LF("Bu Mac'ten okundu · macOS %@ · Magic Mouse %@ · Ayarlar değişince liste kendiliğinden güncellenir",
+                            osVersion, model.miceCount > 0 ? L("bağlı") : L("bağlı değil")))
+                }
+            }
+            .font(.system(size: 13)).foregroundStyle(MM.text2)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
@@ -91,7 +118,30 @@ struct SystemPage: View {
                     }
                 }
                 Spacer(minLength: 0)
-                freeStrip
+                freeStrip(L("macOS'un Magic Mouse'ta kullanmadığı, serbest hareketler"), SystemGestureCatalog.freeGestures)
+            }
+        }
+    }
+
+    /// Trackpad sekmesi: `TrackpadGestureCatalog` bölümleri, aynı dört sütun.
+    private var trackpadTable: some View {
+        MMCard {
+            VStack(spacing: 0) {
+                gridRow {
+                    MMSectionLabel(L("Hareket")); MMSectionLabel(L("macOS görevi"))
+                    MMSectionLabel(L("Bu Mac'te")); MMSectionLabel(L("Merlin Mouse için"))
+                }
+                .padding(.vertical, 10)
+                .overlay(alignment: .bottom) { Rectangle().fill(MM.line).frame(height: 1) }
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(state.trackpadSections, id: \.title) { s in
+                            group(s.title, s.rows, trackpad: true)
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+                freeStrip(L("macOS'un trackpad'de kullanmadığı, serbest hareketler"), TrackpadGestureCatalog.freeGestures)
             }
         }
     }
@@ -102,7 +152,7 @@ struct SystemPage: View {
             .padding(.horizontal, 20)
     }
 
-    private func group(_ title: String, _ rows: [SystemGestureRow]) -> some View {
+    private func group(_ title: String, _ rows: [SystemGestureRow], trackpad: Bool = false) -> some View {
         VStack(spacing: 0) {
             Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(MM.text)
                 .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 4)
@@ -117,7 +167,7 @@ struct SystemPage: View {
                         .foregroundStyle(MM.text)
                     Text(r.task).font(.system(size: 13.5)).foregroundStyle(MM.text)
                     chip(r.status)
-                    Text(r.note).font(.system(size: 13)).foregroundStyle(noteColor(r))
+                    Text(r.note).font(.system(size: 13)).foregroundStyle(trackpad ? trackpadNoteColor(r) : noteColor(r))
                 }
                 .padding(.vertical, 9)
                 .overlay(alignment: .bottom) { Rectangle().fill(MM.line2).frame(height: 1) }
@@ -135,6 +185,11 @@ struct SystemPage: View {
         }
     }
 
+    /// Trackpad: yalnız açık ve çakışabilen satırlar uyarı rengiyle; bilgi satırları soluk.
+    private func trackpadNoteColor(_ r: SystemGestureRow) -> Color {
+        r.isConfigurable && r.status == .on ? MM.warnText : MM.text2
+    }
+
     private func chip(_ status: SystemGestureStatus) -> some View {
         let spec: (String, Color, Color)
         switch status {
@@ -148,12 +203,12 @@ struct SystemPage: View {
             .background(spec.1, in: Capsule())
     }
 
-    private var freeStrip: some View {
+    private func freeStrip(_ title: String, _ gestures: [String]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(L("macOS'un Magic Mouse'ta kullanmadığı, serbest hareketler"))
+            Text(title)
                 .font(.system(size: 12, weight: .semibold)).foregroundStyle(MM.accentText)
             FlowLayout(spacing: 8) {
-                ForEach(SystemGestureCatalog.freeGestures, id: \.self) { g in
+                ForEach(gestures, id: \.self) { g in
                     Text(g).font(.system(size: 13)).foregroundStyle(MM.text)
                         .padding(.horizontal, 10).padding(.vertical, 4)
                         .background(MM.card, in: RoundedRectangle(cornerRadius: 8, style: .continuous))

@@ -30,7 +30,7 @@ struct MouseZoneMap: View {
     private var edgeStrips: [(side: EdgeSide, action: GestureAction?, enabled: Bool)] {
         EdgeSide.allCases.compactMap { side in
             let t = Trigger(kind: .edgeSlide, zone: side.zone).normalized
-            let global = store.bindings.filter { $0.appBundleID == nil && $0.trigger.normalized == t }
+            let global = store.bindings.filter { $0.appBundleID == nil && $0.device == .magicMouse && $0.trigger.normalized == t }
             if let on = global.first(where: { $0.enabled }) { return (side, on.action, true) }
             guard showEdges || edgeEditable else { return nil }
             // Kapalıyken temel atamanın eylemi gösterilir.

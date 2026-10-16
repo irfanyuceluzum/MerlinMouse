@@ -9,25 +9,36 @@ struct GesturesPage: View {
     @State private var adding = false
     @State private var twoButton = false
 
+    /// Düzenlenen aygıt üst çubuktaki seçiciden gelir.
+    private var device: InputDeviceKind { s.editingDevice }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             MMPageHeader(title: L("Hareketler"),
-                         subtitle: L("Magic Mouse yüzeyindeki hareketleri orta tuş eylemlerine bağla.")) {
+                         subtitle: device == .trackpad
+                            ? L("Trackpad'in boş hareketlerini orta tuş eylemlerine bağla.")
+                            : L("Magic Mouse yüzeyindeki hareketleri orta tuş eylemlerine bağla.")) {
                 MMPrimaryButton(L("Hareket ekle"), "plus") { adding = true }
             }
+            DevicePassiveBanner()
             banners
-            HStack(alignment: .top, spacing: 20) {
-                zoneCard
-                BindingListView(scope: nil)
+            if device == .trackpad {
+                TrackpadGesturesContent()
+                    .frame(maxHeight: .infinity)
+            } else {
+                HStack(alignment: .top, spacing: 20) {
+                    zoneCard
+                    BindingListView(scope: nil)
+                }
+                .frame(maxHeight: .infinity)
             }
-            .frame(maxHeight: .infinity)
         }
         .padding(.horizontal, 32).padding(.vertical, 28)
         .onAppear { twoButton = AppModel.shared.conflictEnvironment().mouseButtonMode == "TwoButton" }
         .onReceive(Timer.publish(every: 5, on: .main, in: .common).autoconnect()) { _ in
             twoButton = AppModel.shared.conflictEnvironment().mouseButtonMode == "TwoButton"
         }
-        .sheet(isPresented: $adding) { BindingEditorView(existing: nil) }
+        .sheet(isPresented: $adding) { BindingEditorView(existing: nil, device: device) }
     }
 
     @ViewBuilder private var banners: some View {

@@ -118,6 +118,8 @@ struct BindingEditorView: View {
     private let original: GestureBinding?
     private let initialTrigger: Trigger
     private let initialScope: AppChoice?
+    /// Atamanın aygıtı: mevcut atamada onunki, yenide çağıranın verdiği (varsayılan Magic Mouse).
+    private let device: InputDeviceKind
     @State private var confirmChange = false
     @State private var confirmDelete = false
     @State private var trigger: Trigger
@@ -145,17 +147,24 @@ struct BindingEditorView: View {
 
     private static let otherTag = "__other__"
 
-    /// Hazır hareket ızgarasındaki tetikler: genel hazırlar ve iki kenar kaydırma.
-    private static let edgeTriggers = [Trigger(kind: .edgeSlide, zone: .leftEdge).normalized,
-                                       Trigger(kind: .edgeSlide, zone: .rightEdge).normalized]
-    private static func isPreset(_ t: Trigger) -> Bool {
+    /// Hazır hareket ızgarasındaki tetikler: aygıtın hazırları ve (yalnız farede) iki kenar kaydırma.
+    private static let mouseEdgeTriggers = [Trigger(kind: .edgeSlide, zone: .leftEdge).normalized,
+                                            Trigger(kind: .edgeSlide, zone: .rightEdge).normalized]
+    private static func edgeTriggers(for device: InputDeviceKind) -> [Trigger] {
+        device == .magicMouse ? mouseEdgeTriggers : []
+    }
+    private static func isPreset(_ t: Trigger, device: InputDeviceKind) -> Bool {
         let n = t.normalized
-        return GesturePresets.all.contains { $0.trigger == n } || edgeTriggers.contains(n)
+        return GesturePresets.presets(for: device).contains { $0.trigger == n } || edgeTriggers(for: device).contains(n)
     }
 
     /// `presetAction` verilirse alanlar kayıtlı eylem yerine onunla açılır (örn. Kaydırma sayfasında
-    /// "Kısayol çifti…" seçildiğinde); kaydedilene kadar hiçbir şey değişmez.
-    init(existing: GestureBinding?, presetScope: AppChoice? = nil, presetAction: GestureAction? = nil) {
+    /// "Kısayol çifti…" seçildiğinde); kaydedilene kadar hiçbir şey değişmez. `device` yalnız yeni atamada
+    /// kullanılır; mevcut atama kendi aygıtında kalır.
+    init(existing: GestureBinding?, presetScope: AppChoice? = nil, presetAction: GestureAction? = nil,
+         device: InputDeviceKind = .magicMouse) {
+        let dev = existing?.device ?? device
+        self.device = dev
         id = existing?.id ?? UUID()
         enabled = existing?.enabled ?? true
         isEditing = existing != nil
@@ -168,11 +177,11 @@ struct BindingEditorView: View {
         }
         let start = existing?.trigger.normalized
             ?? TriggerOptions.firstFreeTrigger(among: BindingStore.shared.bindings, scope: startScope?.id,
-                                               env: AppModel.shared.conflictEnvironment())
+                                               env: AppModel.shared.conflictEnvironment(), device: dev)
         initialTrigger = start
         initialScope = startScope
         _trigger = State(initialValue: start)
-        _custom = State(initialValue: !Self.isPreset(start))
+        _custom = State(initialValue: !Self.isPreset(start, device: dev))
         var k = EditorActionKind.middle
         var c = KeyCombo(keyCode: 0, modifiers: [], display: "")
         var s = SystemAction.missionControl
@@ -229,8 +238,10 @@ struct BindingEditorView: View {
     private static let emptyCombo = KeyCombo(keyCode: 0, modifiers: [], display: "")
 
     private func binding(for t: Trigger) -> GestureBinding {
+        // Aygıt korunur: trackpad ataması düzenlenince fare atamasına dönüşmesin (`device` = original?.device ?? verilen).
         GestureBinding(id: id, trigger: t, action: action, enabled: enabled,
-                       appBundleID: scope?.id, appName: scope?.name, builtInKey: original?.builtInKey)
+                       appBundleID: scope?.id, appName: scope?.name, builtInKey: original?.builtInKey,
+                       device: original?.device ?? device)
     }
 
     private var current: GestureBinding { binding(for: trigger) }
@@ -269,7 +280,7 @@ struct BindingEditorView: View {
 
     private func loadTrigger(_ t: Trigger) {
         trigger = t
-        custom = !Self.isPreset(t)
+        custom = !Self.isPreset(t, device: device)
         picked = true
     }
 
@@ -321,6 +332,15 @@ struct BindingEditorView: View {
                         HStack(spacing: 8) {
                             Text(isEditing ? L("Hareketi düzenle") : L("Yeni hareket ekle"))
                                 .font(.system(size: 18, weight: .semibold)).foregroundStyle(MM.text)
+                            if device == .trackpad {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "rectangle.and.hand.point.up.left").font(.system(size: 9, weight: .semibold))
+                                    Text(InputDeviceKind.trackpad.displayName).font(.system(size: 11.5, weight: .medium))
+                                }
+                                .foregroundStyle(MM.accentText)
+                                .padding(.horizontal, 8).padding(.vertical, 3)
+                                .background(MM.accentSoft, in: Capsule())
+                            }
                             if isBuiltIn {
                                 HStack(spacing: 3) {
                                     Image(systemName: "lock.fill").font(.system(size: 9, weight: .semibold))
@@ -456,7 +476,7 @@ struct BindingEditorView: View {
 
     private var cardGrid: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
-            ForEach(Array(GesturePresets.all.enumerated()), id: \.offset) { _, p in
+            ForEach(Array(GesturePresets.presets(for: device).enumerated()), id: \.offset) { _, p in
                 let st = cardStatus(p.trigger)
                 gestureCard(title: p.title, status: st.text, dot: st.dot, glyph: p.trigger,
                             selected: picked && !custom && trigger.normalized == p.trigger) {
@@ -465,7 +485,7 @@ struct BindingEditorView: View {
                     picked = true
                 }
             }
-            ForEach(Self.edgeTriggers, id: \.self) { t in
+            ForEach(Self.edgeTriggers(for: device), id: \.self) { t in
                 let st = cardStatus(t)
                 gestureCard(title: t.title, status: st.text, dot: st.dot, glyph: t,
                             selected: picked && !custom && trigger.normalized == t) {
@@ -474,7 +494,9 @@ struct BindingEditorView: View {
                     picked = true
                 }
             }
-            gestureCard(title: L("Özel hareket…"), status: L("Tür, parmak ve bölgeyi kendin seç"), dot: nil,
+            gestureCard(title: L("Özel hareket…"),
+                        status: device == .trackpad ? L("Tür ve parmak sayısını kendin seç") : L("Tür, parmak ve bölgeyi kendin seç"),
+                        dot: nil,
                         glyph: picked && custom ? trigger : nil, selected: picked && custom) {
                 custom = true
                 picked = true
@@ -489,7 +511,7 @@ struct BindingEditorView: View {
         return Button(action: action) {
             HStack(alignment: .center, spacing: 10) {
                 if let glyph {
-                    GestureGlyphView(trigger: glyph)
+                    GestureGlyphView(trigger: glyph, device: device)
                 } else {
                     Image(systemName: "slider.horizontal.3").font(.system(size: 14, weight: .medium))
                         .foregroundStyle(MM.text2)
@@ -519,9 +541,10 @@ struct BindingEditorView: View {
     // MARK: Özel hareket
 
     @ViewBuilder private var customFields: some View {
-        let zones = TriggerOptions.zoneChoices(kind: trigger.kind, fingers: trigger.fingers, modifier: trigger.modifier)
+        let zones = TriggerOptions.zoneChoices(kind: trigger.kind, fingers: trigger.fingers, modifier: trigger.modifier,
+                                               device: device)
         let reason = TriggerOptions.unavailableZoneReason(kind: trigger.kind, fingers: trigger.fingers,
-                                                          modifier: trigger.modifier)
+                                                          modifier: trigger.modifier, device: device)
         MMCard(padding: 16) {
             VStack(alignment: .leading, spacing: 10) {
                 MMSectionLabel(L("Özel hareket"))
@@ -605,10 +628,14 @@ struct BindingEditorView: View {
             case .macOS:
                 conflictCard(icon: "exclamationmark.triangle", bg: MM.warnBg, line: MM.warnLine, fg: MM.warnText,
                              title: LF("macOS bu hareketi kullanıyor: %@", ownerName(c)),
-                             detail: L("Yer: Sistem Ayarları › Fare. Atarsan iki eylem aynı anda çalışır.")) {
+                             detail: device == .trackpad
+                                ? L("Yer: Sistem Ayarları › Trackpad. Atarsan iki eylem aynı anda çalışır.")
+                                : L("Yer: Sistem Ayarları › Fare. Atarsan iki eylem aynı anda çalışır.")) {
                     smallButton(L("Farklı hareket seç"), fill: MM.warnText, ink: MM.accentInk) { clearPick() }
                     smallButton(L("macOS'ta kapat…"), fill: MM.card, border: MM.warnLine) {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.Mouse-Settings.extension") {
+                        let pane = device == .trackpad ? "com.apple.Trackpad-Settings.extension"
+                                                       : "com.apple.Mouse-Settings.extension"
+                        if let url = URL(string: "x-apple.systempreferences:\(pane)") {
                             NSWorkspace.shared.open(url)
                         }
                     }
@@ -624,7 +651,8 @@ struct BindingEditorView: View {
                 }
             case .duplicate:
                 let rival = BindingStore.shared.bindings.first {
-                    $0.id != id && $0.enabled && $0.appBundleID == scope?.id && $0.trigger.normalized == trigger.normalized
+                    $0.id != id && $0.enabled && $0.device == device && $0.appBundleID == scope?.id
+                        && $0.trigger.normalized == trigger.normalized
                 }
                 let rivalIsBuiltIn = rival?.isBuiltIn ?? false
                 conflictCard(icon: "square.on.square", bg: MM.neuBg, line: MM.line, fg: MM.text,
@@ -667,28 +695,30 @@ struct BindingEditorView: View {
 
     private func field<T>(_ kp: WritableKeyPath<Trigger, T>) -> Binding<T> {
         Binding(get: { trigger[keyPath: kp] },
-                set: { var t = trigger; t[keyPath: kp] = $0; trigger = TriggerOptions.sanitize(t) })
+                set: { var t = trigger; t[keyPath: kp] = $0; trigger = TriggerOptions.sanitize(t, device: device) })
     }
 
+    /// Seçenekler aygıta göre gelir (trackpad: dokunma / basma / çift dokunma, 3–4 parmak, bölge ve tuş yok).
     @ViewBuilder private var triggerFields: some View {
         Picker(L("Hareket türü"), selection: field(\.kind)) {
-            ForEach(TriggerOptions.editableKinds, id: \.self) { Text(Self.kindName($0)).tag($0) }
+            ForEach(TriggerOptions.kinds(device: device), id: \.self) { Text(Self.kindName($0)).tag($0) }
         }
         // Çimdikleme her zaman iki parmak, kenar kaydırma tek parmaktır; seçici gösterilmez.
         if trigger.modifier == .none, trigger.kind != .pinch, trigger.kind != .edgeSlide {
             Picker(L("Parmak"), selection: field(\.fingers)) {
-                ForEach(TriggerOptions.fingerChoices(kind: trigger.kind), id: \.self) { Text("\($0)").tag($0) }
+                ForEach(TriggerOptions.fingerChoices(kind: trigger.kind, device: device), id: \.self) { Text("\($0)").tag($0) }
             }
             .pickerStyle(.segmented)
         }
-        let zones = TriggerOptions.zoneChoices(kind: trigger.kind, fingers: trigger.fingers, modifier: trigger.modifier)
+        let zones = TriggerOptions.zoneChoices(kind: trigger.kind, fingers: trigger.fingers, modifier: trigger.modifier,
+                                               device: device)
         if !zones.isEmpty {
             Picker(trigger.kind == .edgeSlide ? L("Kenar") : L("Bölge"), selection: field(\.zone)) {
                 ForEach(zones, id: \.self) { Text(Self.zoneName($0)).tag($0) }
             }
             .pickerStyle(.segmented)
         }
-        let mods = TriggerOptions.modifierChoices(kind: trigger.kind)
+        let mods = TriggerOptions.modifierChoices(kind: trigger.kind, device: device)
         if mods.count > 1 {
             Picker(L("Tuş"), selection: field(\.modifier)) {
                 ForEach(mods, id: \.self) { Text(Self.modifierName($0)).tag($0) }

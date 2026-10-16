@@ -9,11 +9,13 @@ enum GestureDispatcher {
     /// Büyütme hareketi açık mı: "başladı" gönderildi, "bitti" henüz gönderilmedi.
     private static var magnifyOpen = false
 
-    static func handle(_ gestures: [RecognizedGesture]) {
+    /// `device`: hareketi tanıyan aygıt; eşleştirme yalnız o aygıtın atamalarıyla yapılır.
+    static func handle(_ gestures: [RecognizedGesture], device: InputDeviceKind = .magicMouse) {
         for gesture in gestures {
             let trigger = gesture.trigger
             guard Settings.shared.enabled, !AppModel.shared.isPaused, InputTap.shared.isRunning,
-                  let binding = BindingStore.shared.index.match(trigger, bundleID: FrontApp.shared.bundleID)
+                  let binding = BindingStore.shared.index.match(trigger, bundleID: FrontApp.shared.bundleID,
+                                                                device: device)
             else { continue }
             if InputState.shared.dryRun {
                 AppModel.shared.recordEvent(LF("Deneme: %@ → %@", trigger.title, binding.action.title), dryRun: true)

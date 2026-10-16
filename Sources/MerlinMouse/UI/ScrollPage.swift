@@ -35,20 +35,49 @@ struct ScrollPage: View {
             VStack(alignment: .leading, spacing: 20) {
                 MMPageHeader(title: L("Kaydırma"),
                              subtitle: L("Orta tuşla çalışırken ve 3D programlarda Magic Mouse kaydırmasını denetle."))
-                HStack(alignment: .top, spacing: 20) {
-                    VStack(spacing: 20) {
-                        scrollCard
-                        pinchCard
-                        frontCard
-                    }
-                    .frame(maxWidth: .infinity, alignment: .top)
-                    edgeCard
-                        .frame(maxWidth: .infinity, alignment: .top)
+                if s.editingDevice == .trackpad {
+                    mouseOnlyCard
+                } else {
+                    mouseContent
                 }
             }
             .padding(.horizontal, 32).padding(.vertical, 28)
         }
         .sheet(item: $editing) { e in BindingEditorView(existing: e.binding, presetAction: e.presetAction) }
+    }
+
+    /// Trackpad seçiliyken: bu sayfanın ayarları yalnız Magic Mouse içindir.
+    private var mouseOnlyCard: some View {
+        MMCard(padding: 20) {
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: "computermouse").font(.system(size: 22, weight: .regular))
+                    .foregroundStyle(MM.accentText)
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L("Bu ayarlar yalnız Magic Mouse için"))
+                            .font(.system(size: 14, weight: .semibold)).foregroundStyle(MM.text)
+                        Text(L("Kenar kaydırma ve çimdikleme Magic Mouse'a özgüdür."))
+                            .font(.system(size: 13)).foregroundStyle(MM.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    MMPrimaryButton(L("Magic Mouse'a geç"), "computermouse") { s.editingDevice = .magicMouse }
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private var mouseContent: some View {
+        HStack(alignment: .top, spacing: 20) {
+            VStack(spacing: 20) {
+                scrollCard
+                pinchCard
+                frontCard
+            }
+            .frame(maxWidth: .infinity, alignment: .top)
+            edgeCard
+                .frame(maxWidth: .infinity, alignment: .top)
+        }
     }
 
     // MARK: Sol sütun

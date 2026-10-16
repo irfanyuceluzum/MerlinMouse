@@ -110,13 +110,13 @@ struct PanelView: View {
 
     private var globalCenterPress: GestureBinding? {
         bindingStore.bindings.first {
-            $0.appBundleID == nil && $0.trigger.normalized == Trigger(kind: .press, fingers: 1, zone: .center)
+            $0.appBundleID == nil && $0.device == .magicMouse && $0.trigger.normalized == Trigger(kind: .press, fingers: 1, zone: .center)
         }
     }
 
     private var globalThreeFingerPress: GestureBinding? {
         bindingStore.bindings.first {
-            $0.appBundleID == nil && $0.trigger.kind == .press && $0.trigger.fingers == 3 && $0.trigger.modifier == .none
+            $0.appBundleID == nil && $0.device == .magicMouse && $0.trigger.kind == .press && $0.trigger.fingers == 3 && $0.trigger.modifier == .none
         }
     }
 

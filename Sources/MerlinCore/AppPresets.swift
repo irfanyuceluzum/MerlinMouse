@@ -94,8 +94,9 @@ public enum AppPresets {
         return [bundleID, name].contains { ($0 ?? "").lowercased().contains(needle) }
     }
 
-    /// Profili uygulamaya özel atamalar olarak ekler. Aynı kapsamda aynı tetiğe sahip (açık ya da kapalı)
-    /// bir atama varsa o tetik atlanır; mevcut hiçbir atama değiştirilmez ya da silinmez.
+    /// Profili uygulamaya özel Magic Mouse atamaları olarak ekler. Aynı kapsamda aynı tetiğe sahip (açık ya da kapalı)
+    /// bir Magic Mouse ataması varsa o tetik atlanır; trackpad atamaları engel sayılmaz. Mevcut hiçbir atama
+    /// değiştirilmez ya da silinmez.
     public static func apply(_ preset: AppPreset, bundleID: String, appName: String,
                              to set: BindingSet) -> (set: BindingSet, added: Int, skipped: Int) {
         var next = set
@@ -105,7 +106,9 @@ public enum AppPresets {
         var added = 0, skipped = 0
         for p in preset.bindings {
             let t = p.trigger.normalized
-            let taken = next.bindings.contains { $0.appBundleID == bundleID && $0.trigger.normalized == t }
+            let taken = next.bindings.contains {
+                $0.device == .magicMouse && $0.appBundleID == bundleID && $0.trigger.normalized == t
+            }
             if taken {
                 skipped += 1
                 continue
