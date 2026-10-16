@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+import MerlinCore
 
 /// Genel ayarlar.
 struct GeneralPage: View {
@@ -98,8 +99,23 @@ struct GeneralPage: View {
                     .padding(.horizontal, 20).padding(.vertical, 14)
                 }
                 card(L("Aygıt")) {
-                    row("Magic Mouse", model.deviceInfo.isEmpty ? L("Magic Mouse bulunamadı") : model.deviceInfo) {
-                        MMSecondaryButton(L("Fareyi yeniden tara"), "arrow.clockwise") { model.startTouches() }
+                    let presence = model.devicePresence
+                    let mouseOn = presence.isPresent(.magicMouse)
+                    row(InputDeviceKind.magicMouse.displayName,
+                        mouseOn ? LF("Bağlı · %@", model.deviceInfo) : L("Bağlı değil")) {
+                        HStack(spacing: 12) {
+                            statusChip(mouseOn ? L("Etkin") : L("Pasif"), ok: mouseOn)
+                            MMSecondaryButton(L("Aygıtları yeniden tara"), "arrow.clockwise") { model.startTouches() }
+                        }
+                    }
+                    MMDivider()
+                    // Trackpad altyapısı: yalnız varlık gösterilir; trackpad hareketleri henüz işlenmez.
+                    let trackpadOn = presence.isPresent(.trackpad)
+                    row(InputDeviceKind.trackpad.displayName,
+                        !trackpadOn ? L("Bu Mac'te trackpad yok · ayarlar korunur")
+                            : presence.builtInTrackpad ? L("Dahili trackpad bulundu · trackpad hareketleri yakında")
+                            : L("Trackpad bulundu")) {
+                        statusChip(trackpadOn ? L("Hazır") : L("Pasif"), ok: trackpadOn)
                     }
                     MMDivider()
                     row(L("Pil"), battery.lastRead.map { LF("Son okuma %@", Self.timeFormatter.string(from: $0)) }) {

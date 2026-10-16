@@ -1,7 +1,8 @@
 import SwiftUI
 import MerlinCore
 
-/// Deneme modu: parmakların bölgelerde nasıl algılandığını ve hangi hareketin tetiklendiğini canlı gösterir.
+/// Bölgeler: bölge sınırlarının ve kenar şeritlerinin TEK düzenleme yeri; parmakların bölgelerde nasıl
+/// algılandığını ve hangi hareketin tetiklendiğini de canlı gösterir (kuru deneme dahil).
 struct TestModePage: View {
     @ObservedObject private var model = AppModel.shared
     @ObservedObject private var s = Settings.shared
@@ -18,17 +19,14 @@ struct TestModePage: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                MMPageHeader(title: L("Deneme modu"),
-                             subtitle: L("Parmaklarının hangi bölgede algılandığını ve hangi hareketin tetiklendiğini canlı gör; bölge sınırlarını sürükleyerek ayarla."))
+                MMPageHeader(title: L("Bölgeler"),
+                             subtitle: L("Tüm bölgeleri tek haritada ayarla: sınırları ve kenar şeritlerini sürükle, parmaklarınla hemen dene."))
                 if !model.trusted {
                     MMBanner(kind: .warning, title: L("Erişilebilirlik izni gerekli"),
                              actionTitle: L("Ayarları aç")) { model.requestPermission() }
                 }
                 HStack(alignment: .top, spacing: 20) {
-                    MMCard(padding: 20) {
-                        MouseZoneMap(touches: model.liveTouches, layout: s.zoneLayout, editable: true, flipped: s.flipY,
-                                     image: model.mouseImage, secondaryRightZone: twoButton, width: 220)
-                    }
+                    mapCard
                     VStack(spacing: 16) {
                         MMCard {
                             MMSwitchRow(title: L("Kuru deneme"),
@@ -50,6 +48,42 @@ struct TestModePage: View {
         }
         .onChange(of: dryRun) { _, on in InputState.shared.dryRun = on }
         .onDisappear { InputState.shared.dryRun = false }
+    }
+
+    /// Tek düzenleme haritası: bölge sınırları, orta yükseklik, arka sınırı ve kenar şeritlerinin uçları ve
+    /// genişliği sürüklenir; altında yüzde ölçüler ve "Varsayılana dön".
+    private var mapCard: some View {
+        let r = ZoneReadout(layout: s.zoneLayout, edgeWidth: s.edgeWidth, edgeBounds: s.edgeBounds)
+        return MMCard(padding: 20) {
+            VStack(alignment: .leading, spacing: 12) {
+                MouseZoneMap(touches: model.liveTouches, layout: s.zoneLayout, editable: true, flipped: s.flipY,
+                             image: model.mouseImage, secondaryRightZone: twoButton, width: 220,
+                             showEdges: true, edgeEditable: true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(LF("Sol %lld · Orta %lld · Sağ %lld", r.left, r.center, r.right))
+                    Text(LF("Arka %lld · Orta yükseklik %lld (yüzde)", r.rear, r.centerHeight))
+                        .foregroundStyle(MM.text2)
+                    Text(LF("Kenar genişliği %lld · Kenar aralığı %lld–%lld (yüzde)", r.edgeWidth, r.edgeBottom, r.edgeTop))
+                        .foregroundStyle(MM.text2)
+                }
+                .font(.system(size: 11.5, design: .monospaced)).foregroundStyle(MM.text)
+                .lineLimit(1).minimumScaleFactor(0.7)
+                HStack(spacing: 10) {
+                    Button { s.resetZoneLayout() } label: {
+                        Text(L("Varsayılana dön")).font(.system(size: 12))
+                            .foregroundStyle(MM.text)
+                            .padding(.horizontal, 10).frame(height: 26)
+                            .background(MM.card, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(MM.line, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .help(L("Bölgeleri ve kenar şeritlerini varsayılan boyutlarına döndürür"))
+                    Text(L("Kapalı kenarlar soluk çizilir.")).font(.system(size: 12)).foregroundStyle(MM.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(width: 220)
+        }
     }
 
     /// Kartta her zaman gösterilen parmak satırı sayısı (Magic Mouse en fazla 5 parmak).

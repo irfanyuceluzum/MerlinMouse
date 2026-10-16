@@ -176,7 +176,7 @@ final class PinchModelTests: XCTestCase {
                                            action: .zoom(style: .keys, modifiers: []))
         let c2 = ConflictChecker.check(zoomElsewhere, among: [], env: ConflictEnvironment())
             .filter { $0.level == .unsupported }
-        XCTAssertEqual(c2.map(\.detail), ["Yakınlaştırma eylemi yalnız çimdiklemeyle kullanılır."])
+        XCTAssertEqual(c2.map(\.detail), ["Yakınlaştırma eylemi yalnız çimdikleme ya da kenar kaydırmayla kullanılır."])
 
         // Aynı kapsamda ikinci pinch: yinelenen.
         let other = GestureBinding(trigger: pinch, action: .zoom(style: .wheel, modifiers: []))

@@ -3,7 +3,26 @@ import XCTest
 
 final class TriggerOptionsTests: XCTestCase {
     func testEditableKinds() {
-        XCTAssertEqual(TriggerOptions.editableKinds, [.press, .tap, .doubleTap, .swipe, .pinch])
+        XCTAssertEqual(TriggerOptions.editableKinds, [.press, .tap, .doubleTap, .swipe, .pinch, .edgeSlide])
+    }
+
+    func testEdgeSlideOptions() {
+        XCTAssertEqual(TriggerOptions.fingerChoices(kind: .edgeSlide), [1])
+        XCTAssertEqual(TriggerOptions.zoneChoices(kind: .edgeSlide, fingers: 1, modifier: .none), [.leftEdge, .rightEdge])
+        XCTAssertEqual(TriggerOptions.modifierChoices(kind: .edgeSlide), [.none])
+        let t = TriggerOptions.sanitize(Trigger(kind: .edgeSlide, fingers: 3, zone: .center, direction: .left, modifier: .fn))
+        XCTAssertEqual(t, Trigger(kind: .edgeSlide, fingers: 1, zone: .leftEdge))
+        XCTAssertEqual(TriggerOptions.sanitize(Trigger(kind: .edgeSlide, zone: .rightEdge)).zone, .rightEdge)
+        // Diğer türlerin seçeneklerinde kenar yok.
+        for k in TriggerOptions.editableKinds where k != .edgeSlide {
+            for f in 0...4 {
+                for m in PressModifier.allCases {
+                    XCTAssertFalse(TriggerOptions.zoneChoices(kind: k, fingers: f, modifier: m).contains { $0.isEdge }, "\(k)")
+                }
+            }
+        }
+        // Başka türde kenar bölgesi "her yer"e çekilir.
+        XCTAssertEqual(TriggerOptions.sanitize(Trigger(kind: .doubleTap, fingers: 1, zone: .leftEdge)).zone, .any)
     }
 
     func testPinchOptions() {

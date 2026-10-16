@@ -5,11 +5,18 @@ public enum GestureKind: String, Codable, Hashable, CaseIterable {
     case press, hold, tap, doubleTap, swipe
     /// İki parmakla çimdikleme (her zaman 2 parmak, bölgesiz).
     case pinch
+    /// Farenin sol ya da sağ kenar şeridinde tek parmakla yukarı / aşağı kaydırma (adım eylemleri).
+    case edgeSlide
 }
 
-/// Tek parmakla basılan bölge.
+/// Tek parmakla basılan bölge. `leftEdge` / `rightEdge` yalnız kenar kaydırmanın şerididir;
+/// `Zone.classify` bunları hiç döndürmez.
 public enum Zone: String, Codable, Hashable, CaseIterable {
     case any, left, center, right, rear
+    case leftEdge, rightEdge
+
+    /// Kenar kaydırma şeridi mi?
+    public var isEdge: Bool { self == .leftEdge || self == .rightEdge }
 
     /// Arayüzde gösterilen ad.
     public var displayName: String {
@@ -19,6 +26,8 @@ public enum Zone: String, Codable, Hashable, CaseIterable {
         case .center: return MerlinText.t("Orta")
         case .right: return MerlinText.t("Sağ")
         case .rear: return MerlinText.t("Arka (logo)")
+        case .leftEdge: return MerlinText.t("Sol kenar")
+        case .rightEdge: return MerlinText.t("Sağ kenar")
         }
     }
 }
@@ -63,6 +72,15 @@ public struct Trigger: Codable, Hashable {
             t.modifier = .none
             return t
         }
+        if t.kind == .edgeSlide {
+            t.fingers = 1
+            if !t.zone.isEdge { t.zone = .leftEdge }
+            t.direction = .up
+            t.modifier = .none
+            return t
+        }
+        // Kenar şeritleri yalnız kenar kaydırmada anlamlıdır.
+        if t.zone.isEdge { t.zone = .any }
         if t.kind != .swipe { t.direction = .up }
         if t.fingers != 1 { t.zone = .any }
         if t.kind != .press && t.kind != .hold { t.modifier = .none }
@@ -90,7 +108,8 @@ public struct Trigger: Codable, Hashable {
         let phrase: String
         if t.fingers == 1 {
             switch t.zone {
-            case .any: phrase = MerlinText.t("Tek parmakla")
+            // Kenar şeritleri kenar kaydırma dışında normalleştirmede "her yer" olur.
+            case .any, .leftEdge, .rightEdge: phrase = MerlinText.t("Tek parmakla")
             case .left: phrase = MerlinText.t("Sol bölgeye")
             case .center: phrase = MerlinText.t("Orta bölgeye")
             case .right: phrase = MerlinText.t("Sağ bölgeye")
@@ -119,6 +138,8 @@ public struct Trigger: Codable, Hashable {
             case .right: return MerlinText.f("%@ sağa kaydır", phrase)
             }
         case .pinch: return MerlinText.t("İki parmakla çimdikle")
+        case .edgeSlide:
+            return t.zone == .rightEdge ? MerlinText.t("Sağ kenarda kaydır") : MerlinText.t("Sol kenarda kaydır")
         }
     }
 }

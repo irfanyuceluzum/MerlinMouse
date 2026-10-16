@@ -73,9 +73,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppModel.shared.start()
     }
 
-    /// Çimdikleme sürerken çıkılırsa açık büyütme hareketi "bitti" ile kapanır.
+    /// Çimdikleme sürerken çıkılırsa açık büyütme hareketi "bitti" ile kapanır; kenar oturumu da kapanır.
     func applicationWillTerminate(_ notification: Notification) {
         GestureDispatcher.endPinchSession()
+        GestureDispatcher.endEdgeSession()
     }
 
     /// Finder / Spotlight'tan yeniden açılınca ana pencereyi göster.

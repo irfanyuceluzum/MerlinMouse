@@ -28,4 +28,11 @@ final class ScrollPolicyTests: XCTestCase {
         XCTAssertFalse(ScrollPolicy.shouldDrop(middleDragActive: false, blockWhileDragging: false,
                                                calm3D: false, frontIs3D: false, momentumPhase: 0, pinchActive: false))
     }
+
+    func testEdgeDropsRegardlessOfSettings() {
+        XCTAssertTrue(ScrollPolicy.shouldDrop(middleDragActive: false, blockWhileDragging: false,
+                                              calm3D: false, frontIs3D: false, momentumPhase: 0, edgeActive: true))
+        XCTAssertFalse(ScrollPolicy.shouldDrop(middleDragActive: false, blockWhileDragging: false,
+                                               calm3D: false, frontIs3D: false, momentumPhase: 0, edgeActive: false))
+    }
 }

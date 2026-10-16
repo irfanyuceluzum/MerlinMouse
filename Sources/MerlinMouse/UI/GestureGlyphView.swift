@@ -23,6 +23,13 @@ struct GestureGlyphView: View {
                 if g.rear {
                     Rectangle().fill(MM.bttDot.opacity(0.22)).frame(height: rearHeight)
                 }
+                if let edge = g.edge {
+                    // Kenar kaydırma şeridi: gövde boyunca, gövdeye kırpılmış yeşil şerit.
+                    Rectangle().fill(MM.okDot.opacity(0.22))
+                        .frame(width: CGFloat(GestureGlyph.edgeStripeWidth))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity,
+                               alignment: edge == .left ? .leading : .trailing)
+                }
             }
             .clipShape(shell)
             .overlay(shell.strokeBorder(MM.text2, lineWidth: CGFloat(GestureGlyph.bodyStroke)))

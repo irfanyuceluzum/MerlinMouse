@@ -91,13 +91,24 @@ public enum ConflictChecker {
             out.append(Conflict(level: .unsupported, title: MerlinText.t("Çimdikleme yalnız yakınlaştırmaya"),
                                 detail: MerlinText.t("Çimdikleme yalnız yakınlaştırma eylemine atanabilir.")))
         }
-        if t.kind != .pinch, binding.action.isZoom {
-            out.append(Conflict(level: .unsupported, title: MerlinText.t("Yakınlaştırma yalnız çimdiklemeyle"),
-                                detail: MerlinText.t("Yakınlaştırma eylemi yalnız çimdiklemeyle kullanılır.")))
+        if t.kind != .pinch, t.kind != .edgeSlide, binding.action.isZoom {
+            out.append(Conflict(level: .unsupported, title: MerlinText.t("Yakınlaştırma yalnız çimdikleme ya da kenar kaydırmayla"),
+                                detail: MerlinText.t("Yakınlaştırma eylemi yalnız çimdikleme ya da kenar kaydırmayla kullanılır.")))
+        }
+        // Kenar kaydırma adım adım çalışır: ses, parlaklık, yakınlaştırma ya da kısayol çifti.
+        if t.kind == .edgeSlide, !binding.action.isStepAction {
+            out.append(Conflict(level: .unsupported, title: MerlinText.t("Kenar kaydırmaya uygun değil"),
+                                detail: MerlinText.t("Kenar kaydırma yalnız ses, parlaklık, yakınlaştırma ya da kısayol çifti ile kullanılır.")))
+        }
+        if t.kind != .edgeSlide, binding.action.isEdgeOnly {
+            out.append(Conflict(level: .unsupported, title: MerlinText.t("Yalnız kenar kaydırmayla"),
+                                detail: MerlinText.t("Bu eylem yalnız kenar kaydırmayla kullanılır.")))
         }
 
-        let dup = among.first {
-            $0.id != binding.id && $0.enabled && $0.appBundleID == binding.appBundleID && $0.trigger.normalized == t
+        // Rakipler yalnız aynı aygıtta aranır: farklı aygıtlardaki aynı tetik yinelenen değildir.
+        let peers = among.filter { $0.id != binding.id && $0.device == binding.device }
+        let dup = peers.first {
+            $0.enabled && $0.appBundleID == binding.appBundleID && $0.trigger.normalized == t
         }
         if let dup {
             let detail = dup.isBuiltIn
@@ -108,7 +119,7 @@ public enum ConflictChecker {
         }
 
         // Kapalı rakip varsa (açık rakip olsa da) kayıtta silineceği için her zaman bildirilir.
-        for off in among where off.id != binding.id && !off.enabled && off.appBundleID == binding.appBundleID && off.trigger.normalized == t {
+        for off in peers where !off.enabled && off.appBundleID == binding.appBundleID && off.trigger.normalized == t {
             if off.isBuiltIn {
                 out.append(Conflict(level: .replacesDisabled, title: MerlinText.t("Kapalı bir ataması var"),
                                     detail: MerlinText.t("Bu hareketin kapalı bir temel ataması var; kaydedersen yeni atama çalışır, temel atama kapalı kalır."),
@@ -121,8 +132,8 @@ public enum ConflictChecker {
         }
 
         if binding.enabled, let app = binding.appBundleID,
-           let g = among.first(where: {
-               $0.id != binding.id && $0.enabled && $0.appBundleID == nil && $0.trigger.normalized == t
+           let g = peers.first(where: {
+               $0.enabled && $0.appBundleID == nil && $0.trigger.normalized == t
            }) {
             out.append(Conflict(level: .shadows, title: MerlinText.t("Genel atamanın yerine geçer"),
                                 detail: MerlinText.f("%@'de '%@' yerine bu çalışır.", binding.appName ?? app, g.action.title)))

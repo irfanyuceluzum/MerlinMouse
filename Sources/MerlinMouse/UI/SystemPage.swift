@@ -43,6 +43,7 @@ struct SystemPage: View {
                 }
             }
             statusStrip
+            otherAppBanners
             table
         }
         .padding(.horizontal, 32).padding(.vertical, 28)
@@ -62,6 +63,16 @@ struct SystemPage: View {
         .padding(.horizontal, 14).padding(.vertical, 10)
         .background(MM.card, in: shape)
         .overlay(shape.strokeBorder(MM.line, lineWidth: 1))
+    }
+
+    /// Çalışan diğer fare uygulamaları için birer turuncu şerit; yoksa hiçbir şey.
+    @ViewBuilder private var otherAppBanners: some View {
+        ForEach(model.warnings.filter { $0.source == .otherApp }) { w in
+            MMBanner(kind: .warning, title: w.title, message: w.detail,
+                     actionTitle: w.bundleID == nil ? nil : L("Uygulamayı göster")) {
+                if let id = w.bundleID { SystemCheck.activateApp(bundleID: id) }
+            }
+        }
     }
 
     private var table: some View {

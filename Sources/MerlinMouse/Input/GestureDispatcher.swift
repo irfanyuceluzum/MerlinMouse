@@ -77,6 +77,51 @@ enum GestureDispatcher {
         InputState.shared.pinchActive = false
     }
 
+    /// Etkin kenar kaydırma oturumunda eşleşen adım eylemi (ana kuyruk); nil = oturum yok ya da kuru deneme.
+    private static var edgeAction: GestureAction?
+
+    /// Kenar kaydırma olayları (ana kuyruk): başlangıçta eşleştirir ve bir kez raporlar, sonra her adımda
+    /// eylemi bir adım yürütür (`edgeInvert` yönü çevirir). Kuru denemede yalnız rapor verilir.
+    static func handleEdge(_ events: [EdgeSlideEvent]) {
+        for event in events {
+            switch event {
+            case .began(let side):
+                edgeAction = nil
+                let trigger = Trigger(kind: .edgeSlide, zone: side.zone)
+                guard Settings.shared.enabled, !AppModel.shared.isPaused, InputTap.shared.isRunning,
+                      let binding = BindingStore.shared.index.match(trigger, bundleID: FrontApp.shared.bundleID),
+                      binding.action.isStepAction
+                else { continue }
+                if InputState.shared.dryRun {
+                    AppModel.shared.recordEvent(LF("Deneme: %@ → %@", trigger.title, binding.action.title), dryRun: true)
+                    continue
+                }
+                edgeAction = binding.action
+                InputTap.shared.onAction?("\(binding.action.title) · \(trigger.title)")
+            case .step(let direction):
+                guard let action = edgeAction else { continue }
+                guard Settings.shared.enabled, !AppModel.shared.isPaused, !InputState.shared.dryRun,
+                      InputTap.shared.isRunning else {
+                    endEdgeSession()
+                    continue
+                }
+                ActionExecutor.step(action: action, direction: Settings.shared.edgeInvert ? -direction : direction)
+            case .ended:
+                // Tanıyıcı oturumu zaten kapattı; yeni bir aday başlamış olabilir, ona dokunulmaz.
+                endEdgeSession(resetRecognizer: false)
+            }
+        }
+    }
+
+    /// Kenar kaydırma oturumunu kapatır ve `edgeActive`'i sıfırlar. Bitiş, duraklatma, kapatma, kuru denemeye
+    /// geçiş, aygıt yeniden başlama ve yakalayıcının durması yollarının hepsi buradan geçer (ana kuyruk).
+    /// `resetRecognizer` doğruysa tanıyıcının adayı da iptal edilir (parmaklar kalkana kadar yeni aday yok).
+    static func endEdgeSession(resetRecognizer: Bool = true) {
+        edgeAction = nil
+        if resetRecognizer { TouchMonitor.shared.cancelEdge() }
+        InputState.shared.edgeActive = false
+    }
+
     /// Oturum sürüyor ve hâlâ izinli mi; kapatıldı, duraklatıldı ya da kuru denemeye geçildiyse oturumu kapatır.
     private static func sessionContinues() -> Bool {
         guard InputState.shared.pinchActive else { return false }

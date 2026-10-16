@@ -43,6 +43,10 @@ static bool gOwned; // gMice aygıtları servisten oluşturuldu (yani bizim bır
 static int gMiceCount;
 static OTFrameHandler gHandler;
 static char gDesc[512];
+// Son taramada görülen tüm aygıtlar (yalnız tanım; trackpad akışı başlatılmaz).
+#define MAX_DEVICES 16
+static OTDeviceInfo gDevices[MAX_DEVICES];
+static int gDeviceCount;
 
 static bool load(void) {
     static void *handle;
@@ -79,11 +83,12 @@ static int frameCallback(MTDeviceRef device, MTFinger *fingers, int count, doubl
 
 // Magic Mouse aile kimlikleri 112–127 aralığında; trackpad'ler 128 ve üstü,
 // dahili trackpad'ler ise "built-in" olarak işaretli.
-static bool isMouse(MTDeviceRef device, int *familyOut) {
+static bool isMouse(MTDeviceRef device, int *familyOut, bool *builtInOut) {
     int family = *familyOut; // IOKit'ten okunmuş olabilir; yoksa -1
     if (family < 0 && pGetFamilyID) pGetFamilyID(device, &family);
     *familyOut = family;
     bool builtIn = pIsBuiltIn ? pIsBuiltIn(device) : false;
+    *builtInOut = builtIn;
     if (builtIn) return false;
     if (family >= 112 && family <= 127) return true;
     return family < 0; // aile okunamadıysa: dahili olmayan aygıtı fare say
@@ -103,9 +108,17 @@ void OTMultitouchStop(void) {
     }
 }
 
-static void addDescription(int family, bool mouse) {
+// Açıklamaya ekler ve aygıtı tanım listesine yazar (`started`: fare olarak akışı başlatıldı mı).
+static void addDescription(int family, bool builtIn, bool mouse, bool started) {
     size_t len = strlen(gDesc);
-    snprintf(gDesc + len, sizeof gDesc - len, "%saile %d%s", len ? ", " : "", family, mouse ? " (fare)" : "");
+    snprintf(gDesc + len, sizeof gDesc - len, "%saile %d%s%s", len ? ", " : "", family,
+             builtIn ? " (dahili)" : "", mouse ? " (fare)" : "");
+    if (gDeviceCount < MAX_DEVICES) {
+        gDevices[gDeviceCount].family = family;
+        gDevices[gDeviceCount].builtIn = builtIn ? 1 : 0;
+        gDevices[gDeviceCount].started = started ? 1 : 0;
+        gDeviceCount++;
+    }
 }
 
 static void startMouse(MTDeviceRef device) {
@@ -130,9 +143,11 @@ static void startFromServices(void) {
         MTDeviceRef device = pCreateFromService(service);
         IOObjectRelease(service);
         if (!device) continue;
-        bool mouse = isMouse(device, &family);
-        addDescription(family, mouse);
-        if (mouse && gMiceCount < MAX_MICE) {
+        bool builtIn = false;
+        bool mouse = isMouse(device, &family, &builtIn);
+        bool start = mouse && gMiceCount < MAX_MICE;
+        addDescription(family, builtIn, mouse, start);
+        if (start) {
             startMouse(device);
         } else if (pRelease) {
             pRelease(device);
@@ -149,9 +164,11 @@ static void startFromList(void) {
     for (CFIndex i = 0; i < total; i++) {
         MTDeviceRef device = (MTDeviceRef)CFArrayGetValueAtIndex(gList, i);
         int family = -1;
-        bool mouse = isMouse(device, &family);
-        addDescription(family, mouse);
-        if (mouse && gMiceCount < MAX_MICE) startMouse(device);
+        bool builtIn = false;
+        bool mouse = isMouse(device, &family, &builtIn);
+        bool start = mouse && gMiceCount < MAX_MICE;
+        addDescription(family, builtIn, mouse, start);
+        if (start) startMouse(device);
     }
 }
 
@@ -163,6 +180,7 @@ int OTMultitouchStart(OTFrameHandler handler) {
     OTMultitouchStop();
     gHandler = handler;
     gDesc[0] = 0;
+    gDeviceCount = 0;
     if (pCreateFromService) startFromServices();
     else if (pCreateList) startFromList();
     return gMiceCount;
@@ -201,4 +219,10 @@ void OTMultitouchWatchDevices(void (*onChange)(void)) {
 
 const char *OTMultitouchDescribe(void) {
     return gDesc;
+}
+
+int OTMultitouchDevices(OTDeviceInfo *out, int max) {
+    int n = gDeviceCount < max ? gDeviceCount : max;
+    for (int i = 0; i < n; i++) out[i] = gDevices[i];
+    return n < 0 ? 0 : n;
 }

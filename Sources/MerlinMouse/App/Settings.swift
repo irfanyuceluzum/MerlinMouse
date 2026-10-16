@@ -22,6 +22,27 @@ final class Settings: ObservableObject {
     @Published var pinchInvert: Bool { didSet { save(pinchInvert, "pinchInvert") } }
     /// Bir yakınlaştırma adımı için gereken mesafe değişimi (`PinchRecognizer.stepRange`).
     @Published var pinchStep: Double { didSet { save(pinchStep, "pinchStep") } }
+    /// Kenar kaydırma şeridinin genişliği (`EdgeSlideRecognizer.edgeWidthRange`).
+    @Published var edgeWidth: Double { didSet { save(edgeWidth, "edgeWidth") } }
+    /// Kenar kaydırmada bir adım için gereken dikey değişim (`EdgeSlideRecognizer.stepRange`).
+    @Published var edgeStep: Double { didSet { save(edgeStep, "edgeStep") } }
+    /// Ses ve parlaklık çeyrek adımlarla değişir (⇧⌥ + medya tuşu).
+    @Published var edgeFineSteps: Bool { didSet { save(edgeFineSteps, "edgeFineSteps") } }
+    /// Kenar kaydırma yönünü ters çevir (aşağı kaydırmak artırır).
+    @Published var edgeInvert: Bool { didSet { save(edgeInvert, "edgeInvert") } }
+    /// Kenar şeridinin alt ve üst ucu (y: 0 arka → 1 ön); iki kenar ortak. Yalnız `edgeBounds` ile yazılır.
+    @Published private(set) var edgeBottom: Double { didSet { save(edgeBottom, "edgeBottom") } }
+    @Published private(set) var edgeTop: Double { didSet { save(edgeTop, "edgeTop") } }
+
+    /// Kenar şeridinin dikey aralığı; yazarken sıkıştırılır (0 ≤ alt, üst ≤ 0.85, yükseklik ≥ 0.15).
+    var edgeBounds: EdgeStripBounds {
+        get { EdgeStripBounds(bottom: edgeBottom, top: edgeTop) }
+        set {
+            let c = newValue.clamped()
+            if c.bottom != edgeBottom { edgeBottom = c.bottom }
+            if c.top != edgeTop { edgeTop = c.top }
+        }
+    }
     /// Bölge düzeni (sol/orta/sağ sınırları, ön/arka sınırı); JSON olarak saklanır.
     @Published var zoneLayout: ZoneLayout { didSet { saveLayout() } }
     /// Ön/arka yönü ters çevir (ayarlama için).
@@ -42,6 +63,9 @@ final class Settings: ObservableObject {
             "zoneWidth": 0.30, "flipY": false, "appearance": "system", "batteryAlertsEnabled": true,
             "language": "system", "onboardingCompleted": false,
             "pinchInvert": false, "pinchStep": PinchRecognizer.defaultStep,
+            "edgeWidth": EdgeSlideRecognizer.defaultEdgeWidth, "edgeStep": EdgeSlideRecognizer.defaultStep,
+            "edgeFineSteps": false, "edgeInvert": false,
+            "edgeBottom": EdgeStripBounds.defaultBottom, "edgeTop": EdgeStripBounds.defaultTop,
         ])
         enabled = defaults.bool(forKey: "enabled")
         zoneClick = defaults.bool(forKey: "zoneClick")
@@ -54,6 +78,16 @@ final class Settings: ObservableObject {
         pinchInvert = defaults.bool(forKey: "pinchInvert")
         let range = PinchRecognizer.stepRange
         pinchStep = min(max(defaults.double(forKey: "pinchStep"), range.lowerBound), range.upperBound)
+        let widths = EdgeSlideRecognizer.edgeWidthRange
+        edgeWidth = min(max(defaults.double(forKey: "edgeWidth"), widths.lowerBound), widths.upperBound)
+        let steps = EdgeSlideRecognizer.stepRange
+        edgeStep = min(max(defaults.double(forKey: "edgeStep"), steps.lowerBound), steps.upperBound)
+        edgeFineSteps = defaults.bool(forKey: "edgeFineSteps")
+        edgeInvert = defaults.bool(forKey: "edgeInvert")
+        let bounds = EdgeStripBounds(bottom: defaults.double(forKey: "edgeBottom"),
+                                     top: defaults.double(forKey: "edgeTop")).clamped()
+        edgeBottom = bounds.bottom
+        edgeTop = bounds.top
         // Eski "zoneWidth" yalnız göç kaynağı: düzen kayıtlı değilse ondan üretilir.
         if let data = defaults.data(forKey: "zoneLayout"),
            let saved = try? JSONDecoder().decode(ZoneLayout.self, from: data) {
@@ -79,7 +113,12 @@ final class Settings: ObservableObject {
         if let data = try? JSONEncoder().encode(zoneLayout) { defaults.set(data, forKey: "zoneLayout") }
     }
 
-    func resetZoneLayout() { zoneLayout = .standard }
+    /// Fare haritasının geometrisini varsayılana döndürür: bölge düzeni, kenar şeridinin genişliği ve dikey aralığı.
+    func resetZoneLayout() {
+        zoneLayout = .standard
+        edgeWidth = EdgeSlideRecognizer.defaultEdgeWidth
+        edgeBounds = .standard
+    }
 
     func applyAppearance() {
         switch appearance {

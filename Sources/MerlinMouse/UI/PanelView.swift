@@ -177,6 +177,10 @@ struct PanelView: View {
         if let btt = model.warnings.first(where: { $0.source == .btt }) {
             linkRow(btt.title, icon: "arrow.left.arrow.right", bg: MM.bttBg, fg: MM.bttText) { openPage(.gestures) }
         }
+        if let other = model.warnings.first(where: { $0.source == .otherApp }) {
+            linkRow(LF("%@; aynı hareketleri işleyebilir", other.title), icon: "exclamationmark.triangle",
+                    bg: MM.warnBg, fg: MM.warnText) { openPage(.system) }
+        }
     }
 
     private func linkRow(_ text: String, icon: String, bg: Color, fg: Color, action: @escaping () -> Void) -> some View {

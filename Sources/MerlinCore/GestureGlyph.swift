@@ -62,6 +62,10 @@ public struct GestureGlyph: Equatable {
     public var labels: [GlyphLabel] = []
     /// Arka (logo) bölgesi vurgulanır mı?
     public var rear = false
+    /// Kenar kaydırmada vurgulanan şerit (gövde boyunca, gövdeye kırpılır); yoksa nil.
+    public var edge: EdgeSide?
+    /// Kenar şeridinin genişliği (gövde kenarından içeri).
+    public static let edgeStripeWidth: Double = 10
 
     static let labelSize: Double = 9
     static let arrowSize: Double = 10
@@ -80,6 +84,11 @@ public struct GestureGlyph: Equatable {
         case .pinch:
             dots = [GlyphDot(x: 9, y: 14, hollow: false), GlyphDot(x: 19, y: 14, hollow: false)]
             labels = [GlyphLabel(x: 14, y: 25, text: "↔", size: Self.arrowSize)]
+        case .edgeSlide:
+            let right = t.zone == .rightEdge
+            edge = right ? .right : .left
+            dots = [GlyphDot(x: right ? 21 : 7, y: 16, hollow: false)]
+            labels = [GlyphLabel(x: right ? 13 : 15, y: 16, text: "↕", size: Self.arrowSize)]
         }
     }
 
@@ -90,7 +99,7 @@ public struct GestureGlyph: Equatable {
         switch zone {
         case .left: return (8, 12)
         case .right: return (20, 11)
-        case .any, .center, .rear: return (14, 12)
+        case .any, .center, .rear, .leftEdge, .rightEdge: return (14, 12)
         }
     }
 

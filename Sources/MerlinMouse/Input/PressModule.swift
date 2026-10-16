@@ -61,8 +61,10 @@ final class PressModule: InputModule {
     private func matchBinding(_ type: CGEventType, _ event: CGEvent) -> GestureBinding? {
         let s = Settings.shared
         // Avuç içini saymamak için yalnızca öndeki parmaklara bak.
-        let points = TouchMonitor.shared.touches
-            .map { TouchPoint(id: $0.id, x: $0.x, y: $0.front(flipped: s.flipY)) }
+        // Açık kenarın şeridinde duran parmak (örn. başparmak) basışta sayılmaz; kenar kapalıysa süzme yok.
+        let monitor = TouchMonitor.shared
+        let points = monitor.excludingEdgeStrips(monitor.touches
+            .map { TouchPoint(id: $0.id, x: $0.x, y: $0.front(flipped: s.flipY)) })
         let fnDown = type == .leftMouseDown && event.flags.contains(.maskSecondaryFn)
         let candidates = PressResolver.candidates(fingers: points, fnDown: fnDown,
                                                   layout: s.zoneLayout)

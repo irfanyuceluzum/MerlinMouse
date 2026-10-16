@@ -57,11 +57,33 @@ public enum GestureAction: Hashable {
     case system(SystemAction)
     case openApp(path: String, name: String)
     case runShortcut(name: String)
-    /// Çimdiklemeyle yakınlaştırma / uzaklaştırma (yalnız pinch tetiğiyle). Düzenleyiciler yalnız
+    /// Yakınlaştırma / uzaklaştırma (yalnız çimdikleme ve kenar kaydırma tetiğiyle). Düzenleyiciler yalnız
     /// `wheel` yönteminde anlamlıdır; diğer yöntemlerde normalleştirmede boşaltılır.
     case zoom(style: ZoomStyle, modifiers: [String])
     /// Düzenleyici tuşlarla birlikte orta tuş (basma, sürükleme, bırakma); adlar `middleDragModifierOrder`'dan.
     case middleDrag(modifiers: [String])
+    /// Ses açma / kısma medya tuşu (yalnız kenar kaydırmayla).
+    case volume
+    /// Ekran parlaklığı medya tuşu (yalnız kenar kaydırmayla).
+    case brightness
+    /// Artırma ve azaltma için iki kısayol (yalnız kenar kaydırmayla).
+    case stepShortcut(up: KeyCombo, down: KeyCombo)
+
+    /// Adım adım yürütülen eylem mi (kenar kaydırmada kullanılabilir)?
+    public var isStepAction: Bool {
+        switch self {
+        case .volume, .brightness, .stepShortcut, .zoom: return true
+        default: return false
+        }
+    }
+
+    /// Yalnız kenar kaydırmaya özgü eylem mi (yakınlaştırma çimdiklemede de kullanılır)?
+    public var isEdgeOnly: Bool {
+        switch self {
+        case .volume, .brightness, .stepShortcut: return true
+        default: return false
+        }
+    }
 
     /// Düzenleyicili orta tuşta izinli adlar, gösterim sırasıyla (⌃⌥⇧⌘).
     public static let middleDragModifierOrder = ["control", "option", "shift", "command"]
@@ -134,6 +156,9 @@ public enum GestureAction: Hashable {
         case .system(let s): return s.title
         case .openApp(_, let name): return MerlinText.f("%@ uygulamasını aç", name)
         case .runShortcut(let name): return MerlinText.f("Kısayolu çalıştır: %@", name)
+        case .volume: return MerlinText.t("Ses")
+        case .brightness: return MerlinText.t("Parlaklık")
+        case .stepShortcut(let up, let down): return MerlinText.f("Kısayol çifti: %@ / %@", up.display, down.display)
         }
     }
 
@@ -153,7 +178,7 @@ public enum GestureAction: Hashable {
 // Elle Codable: `{"type":"shortcut", ...alanlar}`; `type` ayrımcı.
 extension GestureAction: Codable {
     private enum Keys: String, CodingKey {
-        case type, keyCode, modifiers, display, system, path, name, style
+        case type, keyCode, modifiers, display, system, path, name, style, up, down
     }
 
     public init(from decoder: Decoder) throws {
@@ -191,6 +216,11 @@ extension GestureAction: Codable {
             self = .zoom(style: style, modifiers: Self.zoomModifiers(mods, style: style))
         case "middleDrag":
             self = .middleDrag(modifiers: Self.normalizedModifiers(try c.decode([String].self, forKey: .modifiers)))
+        case "volume": self = .volume
+        case "brightness": self = .brightness
+        case "stepShortcut":
+            self = .stepShortcut(up: try c.decode(KeyCombo.self, forKey: .up),
+                                 down: try c.decode(KeyCombo.self, forKey: .down))
         default:
             throw DecodingError.dataCorruptedError(forKey: .type, in: c,
                                                    debugDescription: "Bilinmeyen eylem türü: \(type)")
@@ -226,6 +256,12 @@ extension GestureAction: Codable {
         case .middleDrag(let mods):
             try c.encode("middleDrag", forKey: .type)
             try c.encode(Self.normalizedModifiers(mods), forKey: .modifiers)
+        case .volume: try c.encode("volume", forKey: .type)
+        case .brightness: try c.encode("brightness", forKey: .type)
+        case .stepShortcut(let up, let down):
+            try c.encode("stepShortcut", forKey: .type)
+            try c.encode(up, forKey: .up)
+            try c.encode(down, forKey: .down)
         }
     }
 }

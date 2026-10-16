@@ -49,37 +49,72 @@ final class BindingMigrationsTests: XCTestCase {
         XCTAssertEqual(BindingMigrations.collapseRedundantDisabledCopies([built, diff]).count, 2)
     }
 
-    func testAddMissingPinchOnce() {
-        let empty = BindingMigrations.addMissingPinch([])
-        XCTAssertEqual(empty.count, 1)
-        XCTAssertEqual(empty[0].builtInKey, "pinch")
+    private func only(_ list: [GestureBinding], _ key: String) -> [GestureBinding] {
+        list.filter { $0.builtInKey == key }
+    }
+
+    func testAddMissingBuiltInsOnce() {
+        let empty = BindingMigrations.addMissingBuiltIns([])
+        XCTAssertEqual(empty.map(\.builtInKey), ["pinch", "edge-left", "edge-right"])
         XCTAssertEqual(empty[0].trigger, Trigger(kind: .pinch, fingers: 2).normalized)
         XCTAssertEqual(empty[0].action, .zoom(style: .gesture, modifiers: []))
         XCTAssertTrue(empty[0].enabled)
-        XCTAssertNil(empty[0].appBundleID)
+        XCTAssertTrue(empty.allSatisfy { $0.appBundleID == nil })
+        // Kenarlar kapalı eklenir.
+        XCTAssertEqual(empty[1].trigger, Trigger(kind: .edgeSlide, zone: .leftEdge).normalized)
+        XCTAssertEqual(empty[1].action, .volume)
+        XCTAssertFalse(empty[1].enabled)
+        XCTAssertEqual(empty[2].trigger, Trigger(kind: .edgeSlide, zone: .rightEdge).normalized)
+        XCTAssertEqual(empty[2].action, .brightness)
+        XCTAssertFalse(empty[2].enabled)
 
         let old = DefaultBindings.from(legacy: LegacyFlags(zoneClick: true, twoFingerClick: true,
                                                            threeFingerClick: true, threeFingerTap: false, fnDrag: true))
-        let once = BindingMigrations.addMissingPinch(old)
-        XCTAssertEqual(once.count, old.count + 1)
-        XCTAssertEqual(once.filter { $0.builtInKey == "pinch" }.count, 1)
-        XCTAssertEqual(BindingMigrations.addMissingPinch(once), once)
+        let once = BindingMigrations.addMissingBuiltIns(old)
+        XCTAssertEqual(once.count, old.count + 3)
+        for key in ["pinch", "edge-left", "edge-right"] { XCTAssertEqual(only(once, key).count, 1, key) }
+        // İkinci çağrı yinelemez.
+        XCTAssertEqual(BindingMigrations.addMissingBuiltIns(once), once)
     }
 
-    func testAddMissingPinchKeepsUserChoice() {
+    func testAddMissingBuiltInsOnlyAddsEdgesToPinchFile() {
+        // Çimdikleme göçünden geçmiş dosya: yalnız iki kenar eklenir.
+        let pinch = GestureBinding(trigger: Trigger(kind: .pinch, fingers: 2), action: .zoom(style: .gesture, modifiers: []),
+                                   builtInKey: "pinch")
+        let out = BindingMigrations.addMissingBuiltIns([pinch])
+        XCTAssertEqual(out.map(\.builtInKey), ["pinch", "edge-left", "edge-right"])
+        XCTAssertEqual(out[0], pinch)
+    }
+
+    func testAddMissingBuiltInsKeepsUserEdgeChoice() {
+        // Kullanıcının açtığı kenar kapanmaz, eylemi de değişmez.
+        let on = GestureBinding(trigger: Trigger(kind: .edgeSlide, zone: .leftEdge), action: .brightness,
+                                enabled: true, builtInKey: "edge-left")
+        let out = BindingMigrations.addMissingBuiltIns([on])
+        XCTAssertEqual(only(out, "edge-left"), [on])
+        XCTAssertEqual(only(out, "edge-right").count, 1)
+        XCTAssertEqual(BindingMigrations.addMissingBuiltIns(out), out)
+        // Anahtarsız genel kenar ataması varsa eklenmez; uygulamaya özel olan sayılmaz.
+        let plain = GestureBinding(trigger: Trigger(kind: .edgeSlide, zone: .rightEdge), action: .volume)
+        XCTAssertTrue(only(BindingMigrations.addMissingBuiltIns([plain]), "edge-right").isEmpty)
+        let app = GestureBinding(trigger: Trigger(kind: .edgeSlide, zone: .rightEdge), action: .volume, appBundleID: "com.x")
+        XCTAssertEqual(only(BindingMigrations.addMissingBuiltIns([app]), "edge-right").count, 1)
+    }
+
+    func testAddMissingBuiltInsKeepsUserPinchChoice() {
         // Kullanıcının kapattığı temel pinch aynen kalır.
         let off = GestureBinding(trigger: Trigger(kind: .pinch, fingers: 2), action: .zoom(style: .gesture, modifiers: []),
                                  enabled: false, builtInKey: "pinch")
-        XCTAssertEqual(BindingMigrations.addMissingPinch([off]), [off])
+        XCTAssertEqual(only(BindingMigrations.addMissingBuiltIns([off]), "pinch"), [off])
         // Anahtarsız pinch ataması: tagBuiltIns işaretler, ekleme yapılmaz.
         let plain = GestureBinding(trigger: Trigger(kind: .pinch, fingers: 2), action: .zoom(style: .gesture, modifiers: []))
-        let tagged = BindingMigrations.addMissingPinch(BindingMigrations.tagBuiltIns([plain]))
-        XCTAssertEqual(tagged.count, 1)
+        let tagged = BindingMigrations.addMissingBuiltIns(BindingMigrations.tagBuiltIns([plain]))
+        XCTAssertEqual(tagged.filter { $0.trigger.normalized.kind == .pinch }.count, 1)
         XCTAssertEqual(tagged[0].builtInKey, "pinch")
-        XCTAssertEqual(BindingMigrations.addMissingPinch([plain]), [plain])
+        XCTAssertTrue(only(BindingMigrations.addMissingBuiltIns([plain]), "pinch").isEmpty)
         // Yalnız uygulamaya özel pinch varsa genel temel eklenir.
         let app = GestureBinding(trigger: Trigger(kind: .pinch, fingers: 2), action: .zoom(style: .wheel, modifiers: []),
                                  appBundleID: "com.x")
-        XCTAssertEqual(BindingMigrations.addMissingPinch([app]).count, 2)
+        XCTAssertEqual(only(BindingMigrations.addMissingBuiltIns([app]), "pinch").count, 1)
     }
 }

@@ -17,6 +17,26 @@ struct MouseZoneMap: View {
     var width: CGFloat = 162
     /// Çok küçük boyutlarda (menü paneli) etiketler gizlenir.
     var showLabels: Bool = true
+    /// Doğruysa iki kenar şeridi her zaman çizilir (kapalı kenar soluk ve kesikli); aksi hâlde yalnız açık kenarlar.
+    var showEdges: Bool = false
+    /// Doğruysa kenar şeritlerinin üst/alt uçları ve genişliği sürüklenerek `Settings` güncellenir (Bölgeler sayfası).
+    var edgeEditable: Bool = false
+
+    // Özel değil: özel bir saklı özellik üye üretecini (memberwise init) dosyaya kapatır.
+    @ObservedObject var store = BindingStore.shared
+    @ObservedObject var settings = Settings.shared
+
+    /// Çizilecek kenar şeritleri, genel kapsamdaki eylemleri ve açık olup olmadıkları.
+    private var edgeStrips: [(side: EdgeSide, action: GestureAction?, enabled: Bool)] {
+        EdgeSide.allCases.compactMap { side in
+            let t = Trigger(kind: .edgeSlide, zone: side.zone).normalized
+            let global = store.bindings.filter { $0.appBundleID == nil && $0.trigger.normalized == t }
+            if let on = global.first(where: { $0.enabled }) { return (side, on.action, true) }
+            guard showEdges || edgeEditable else { return nil }
+            // Kapalıyken temel atamanın eylemi gösterilir.
+            return (side, (global.first { $0.isBuiltIn } ?? global.first)?.action, false)
+        }
+    }
 
     // Tasarımın 388×720 koordinat sistemi.
     private static let vbW: CGFloat = 388
@@ -34,6 +54,7 @@ struct MouseZoneMap: View {
             }
             Canvas { ctx, size in drawOverlay(&ctx, size: size) }
             if editable { handles }
+            if edgeEditable && showLabels && !edgeStrips.isEmpty { edgeHandles }
         }
         .coordinateSpace(name: "zoneMap")
         .frame(width: width, height: height)
@@ -155,6 +176,8 @@ struct MouseZoneMap: View {
             ctx.draw(Text(L("Arka")).font(.system(size: 30 * s))
                         .foregroundColor(Color(red: 0x65 / 255, green: 0x34 / 255, blue: 0xA8 / 255)),
                      at: CGPoint(x: b.midX * s, y: (frontBottom + (b.maxY - frontBottom) * 0.45) * s))
+
+            drawEdges(&inner, s: s)
         }
 
         // Canlı parmaklar
@@ -167,7 +190,97 @@ struct MouseZoneMap: View {
         }
     }
 
+    /// Kenar şeridinin tasarım koordinatlarında üst (ön) ve alt (arka) y'si.
+    private func edgeYRange() -> (top: CGFloat, bottom: CGFloat) {
+        let b = Self.body
+        let bounds = settings.edgeBounds
+        return (b.minY + b.height * CGFloat(1 - bounds.top), b.minY + b.height * CGFloat(1 - bounds.bottom))
+    }
+
+    /// Kenar kaydırma şeritleri: `edgeBottom`…`edgeTop` aralığında yeşil yarı saydam şerit; açık kenar düz,
+    /// kapalı kenar soluk ve kesikli çerçeveli; ortada eylemin simgesi (ses / parlaklık; başka eylemde simge yok).
+    /// Gövdeye kırpılmış bağlamda çizilir.
+    private func drawEdges(_ ctx: inout GraphicsContext, s: CGFloat) {
+        let strips = edgeStrips
+        guard !strips.isEmpty else { return }
+        let b = Self.body
+        let w = b.width * CGFloat(settings.edgeWidth)
+        let ys = edgeYRange()
+        let solid = StrokeStyle(lineWidth: max(1, 3 * s))
+        let dash = StrokeStyle(lineWidth: max(1, 3 * s), dash: [10 * s, 7 * s])
+        for strip in strips {
+            let left = strip.side == .left
+            let fade: Double = strip.enabled ? 1 : 0.45
+            let x0 = left ? b.minX : b.maxX - w
+            ctx.fill(Path(CGRect(x: x0 * s, y: ys.top * s, width: w * s, height: (ys.bottom - ys.top) * s)),
+                     with: .color(MM.okDot.opacity(strip.enabled ? 0.2 : 0.08)))
+            let inner = left ? b.minX + w : b.maxX - w
+            var line = Path()
+            line.move(to: CGPoint(x: x0 * s, y: ys.top * s))
+            line.addLine(to: CGPoint(x: inner * s, y: ys.top * s))
+            line.addLine(to: CGPoint(x: inner * s, y: ys.bottom * s))
+            line.addLine(to: CGPoint(x: x0 * s, y: ys.bottom * s))
+            ctx.stroke(line, with: .color(MM.okDot.opacity(fade)), style: strip.enabled ? solid : dash)
+            let symbol: String?
+            switch strip.action {
+            case .volume?: symbol = "speaker.wave.2.fill"
+            case .brightness?: symbol = "sun.max.fill"
+            default: symbol = nil
+            }
+            if let symbol {
+                ctx.draw(Text(Image(systemName: symbol)).font(.system(size: 26 * s))
+                            .foregroundColor(MM.okDot.opacity(fade)),
+                         at: CGPoint(x: (x0 + w / 2) * s, y: (ys.top + ys.bottom) / 2 * s))
+            }
+        }
+    }
+
     // MARK: Sürüklenebilir tutamaçlar
+
+    /// Kenar şeridi tutamaçları (iki kenar aynı aralığı ve genişliği paylaşır): her şeridin üst ve alt ucu
+    /// `Settings.edgeBounds`'a, iç kenarı `Settings.edgeWidth`'e (0.06…0.20) yazar.
+    private var edgeHandles: some View {
+        let s = width / Self.vbW
+        let b = Self.body
+        let w = b.width * CGFloat(settings.edgeWidth)
+        let ys = edgeYRange()
+        let toFraction = { (y: CGFloat) in Double(1 - (y / s - b.minY) / b.height) }
+        let toX = { (x: CGFloat) in Double((x / s - b.minX) / b.width) }
+        return ZStack {
+            ForEach(EdgeSide.allCases, id: \.self) { side in
+                let left = side == .left
+                let x = (left ? b.minX + w / 2 : b.maxX - w / 2) * s
+                let inner = (left ? b.minX + w : b.maxX - w) * s
+                stripHandle(vertical: false)
+                    .gesture(drag { _, y in Settings.shared.edgeBounds = Settings.shared.edgeBounds.moving(.top, to: toFraction(y)) })
+                    .position(x: x, y: ys.top * s)
+                stripHandle(vertical: false)
+                    .gesture(drag { _, y in Settings.shared.edgeBounds = Settings.shared.edgeBounds.moving(.bottom, to: toFraction(y)) })
+                    .position(x: x, y: ys.bottom * s)
+                stripHandle(vertical: true)
+                    .gesture(drag { px, _ in Settings.shared.edgeWidth = EdgeStrip.width(forHandleAt: toX(px), side: side) })
+                    .position(x: inner, y: (ys.top + ys.bottom) / 2 * s)
+            }
+        }
+        .frame(width: width, height: height)
+    }
+
+    /// Dar kenar şeridine sığan küçük tutamaç: yatay (uçlar) ya da dikey (genişlik).
+    private func stripHandle(vertical: Bool) -> some View {
+        ZStack {
+            Capsule().fill(MM.card)
+                .overlay(Capsule().strokeBorder(MM.okDot, lineWidth: 1.5))
+                .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                .frame(width: vertical ? 7 : 20, height: vertical ? 20 : 7)
+        }
+        .frame(width: vertical ? 20 : 30, height: vertical ? 30 : 20)
+        .contentShape(Rectangle())
+        .onHover { inside in
+            if inside { (vertical ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).push() } else { NSCursor.pop() }
+        }
+        .accessibilityLabel(vertical ? L("Kenar şeridinin genişliği, sürükleyerek daralt ya da genişlet")
+                                     : L("Kenar şeridinin ucu, sürükleyerek uzat ya da kısalt"))
+    }
 
     private var handles: some View {
         let s = width / Self.vbW

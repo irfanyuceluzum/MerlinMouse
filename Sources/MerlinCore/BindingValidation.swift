@@ -17,6 +17,9 @@ public enum BindingValidation {
             if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { missing = MerlinText.t("Kestirme adı boş") }
         case .middleDrag(let mods):
             if GestureAction.normalizedModifiers(mods).isEmpty { missing = MerlinText.t("Düzenleyici tuş seçilmedi") }
+        case .stepShortcut(let up, let down):
+            let empty = { (c: KeyCombo) in c.keyCode == 0 && c.display.isEmpty }
+            if empty(up) || empty(down) { missing = MerlinText.t("Kısayol çifti eksik") }
         default:
             break
         }

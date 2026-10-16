@@ -25,3 +25,14 @@ void OTMultitouchStop(void);
 
 /// Son taramada görülen aygıtların kısa açıklaması (hata ayıklama için).
 const char *OTMultitouchDescribe(void);
+
+/// Son taramada görülen bir dokunma aygıtı (yalnız tanım; akış başlatılmaz).
+typedef struct {
+    int family;   ///< MultitouchSupport aile kimliği; okunamadıysa -1.
+    int builtIn;  ///< 1: dahili (MacBook trackpad'i), 0: harici.
+    int started;  ///< 1: Magic Mouse olarak dokunma akışı başlatıldı.
+} OTDeviceInfo;
+
+/// Son `OTMultitouchStart` taramasındaki aygıtları `out`'a (en çok `max` tane) yazar; yazılan sayıyı döner.
+/// Trackpad'ler yalnız sayılır ve tanımlanır: akışları başlatılmaz, geri çağrı kaydedilmez.
+int OTMultitouchDevices(OTDeviceInfo *out, int max);

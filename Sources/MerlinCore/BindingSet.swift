@@ -9,6 +9,8 @@ public struct GestureBinding: Codable, Hashable {
     public var appName: String?
     /// Temel (ilk kurulum) hareket anahtarı; nil = kullanıcının eklediği atama.
     public var builtInKey: String?
+    /// Atamanın aygıtı; eski kayıtlarda alan yoksa Magic Mouse.
+    public var device: InputDeviceKind
 
     public var isBuiltIn: Bool { builtInKey != nil }
 
@@ -18,7 +20,8 @@ public struct GestureBinding: Codable, Hashable {
                 enabled: Bool = true,
                 appBundleID: String? = nil,
                 appName: String? = nil,
-                builtInKey: String? = nil) {
+                builtInKey: String? = nil,
+                device: InputDeviceKind = .magicMouse) {
         self.id = id
         self.trigger = trigger
         self.action = action
@@ -26,21 +29,46 @@ public struct GestureBinding: Codable, Hashable {
         self.appBundleID = appBundleID
         self.appName = appName
         self.builtInKey = builtInKey
+        self.device = device
     }
 
+    /// Magic Mouse atamaları eski biçimde yazılır (`trigger`, `device` yok). Diğer aygıtların tetiği
+    /// `deviceTrigger` anahtarına yazılır ve `trigger` hiç yazılmaz: eski sürümler `trigger` bulamayınca
+    /// atamayı `preserved`'e düşürür, fare ataması sanmaz.
     private enum CodingKeys: String, CodingKey {
-        case id, trigger, action, enabled, appBundleID, appName, builtInKey
+        case id, trigger, deviceTrigger, action, enabled, appBundleID, appName, builtInKey, device
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
-        trigger = try c.decode(Trigger.self, forKey: .trigger)
+        if let t = try c.decodeIfPresent(Trigger.self, forKey: .trigger) {
+            trigger = t
+        } else {
+            trigger = try c.decode(Trigger.self, forKey: .deviceTrigger)
+        }
         action = try c.decode(GestureAction.self, forKey: .action)
         enabled = try c.decode(Bool.self, forKey: .enabled)
         appBundleID = try c.decodeIfPresent(String.self, forKey: .appBundleID)
         appName = try c.decodeIfPresent(String.self, forKey: .appName)
         builtInKey = try c.decodeIfPresent(String.self, forKey: .builtInKey)
+        device = try c.decodeIfPresent(InputDeviceKind.self, forKey: .device) ?? .magicMouse
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        if device == .magicMouse {
+            try c.encode(trigger, forKey: .trigger)
+        } else {
+            try c.encode(trigger, forKey: .deviceTrigger)
+            try c.encode(device, forKey: .device)
+        }
+        try c.encode(action, forKey: .action)
+        try c.encode(enabled, forKey: .enabled)
+        try c.encodeIfPresent(appBundleID, forKey: .appBundleID)
+        try c.encodeIfPresent(appName, forKey: .appName)
+        try c.encodeIfPresent(builtInKey, forKey: .builtInKey)
     }
 }
 

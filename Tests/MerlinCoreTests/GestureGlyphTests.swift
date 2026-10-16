@@ -147,6 +147,23 @@ final class GestureGlyphTests: XCTestCase {
         XCTAssertFalse(g.rear)
     }
 
+    func testEdgeSlide() {
+        let left = glyph(.edgeSlide, zone: .leftEdge)
+        XCTAssertEqual(left.dots, [GlyphDot(x: 7, y: 16, hollow: false)])
+        XCTAssertEqual(left.labels, [GlyphLabel(x: 15, y: 16, text: "↕", size: 10)])
+        XCTAssertEqual(left.edge, .left)
+        XCTAssertTrue(left.rings.isEmpty)
+        XCTAssertFalse(left.rear)
+        let right = glyph(.edgeSlide, zone: .rightEdge)
+        XCTAssertEqual(right.dots, [GlyphDot(x: 21, y: 16, hollow: false)])
+        XCTAssertEqual(right.labels, [GlyphLabel(x: 13, y: 16, text: "↕", size: 10)])
+        XCTAssertEqual(right.edge, .right)
+        // Kenar dışı bölge sol kenara çekilir; diğer türlerde şerit yok.
+        XCTAssertEqual(glyph(.edgeSlide, fingers: 3, zone: .center, modifier: .fn), left)
+        XCTAssertNil(glyph(.press, fingers: 2).edge)
+        XCTAssertEqual(glyph(.doubleTap, zone: .leftEdge), glyph(.doubleTap, zone: .any))
+    }
+
     // MARK: Normalleştirme
 
     func testPinchIgnoresZoneFingersAndModifier() {

@@ -52,28 +52,29 @@ struct GesturesPage: View {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(L("Dokunma bölgeleri")).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(MM.text)
-                    Text(L("Sınırları sürükleyerek boyutlandır."))
+                    Text(L("Sınırlar Bölgeler sayfasında ayarlanır."))
                         .font(.system(size: 12)).foregroundStyle(MM.text2)
                 }
-                MouseZoneMap(touches: model.liveTouches, layout: s.zoneLayout, editable: true, flipped: s.flipY,
-                             image: model.mouseImage, secondaryRightZone: twoButton, width: 150)
+                // Yalnız gösterir; tek düzenleme yeri Bölgeler sayfasıdır.
+                MouseZoneMap(touches: model.liveTouches, layout: s.zoneLayout, flipped: s.flipY,
+                             image: model.mouseImage, secondaryRightZone: twoButton, width: 150, showEdges: true)
                     .frame(maxWidth: .infinity)
                 VStack(alignment: .leading, spacing: 8) {
+                    let r = ZoneReadout(layout: s.zoneLayout, edgeWidth: s.edgeWidth, edgeBounds: s.edgeBounds)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(LF("Sol %lld · Orta %lld · Sağ %lld", pct(s.zoneLayout.leftWidth), pct(s.zoneLayout.centerWidth), pct(s.zoneLayout.rightWidth)))
-                        Text(LF("Arka %lld · Orta yükseklik %lld (yüzde)", pct(s.zoneLayout.frontLimit), pct(s.zoneLayout.centerHeight))).foregroundStyle(MM.text2)
+                        Text(LF("Sol %lld · Orta %lld · Sağ %lld", r.left, r.center, r.right))
+                        Text(LF("Arka %lld · Orta yükseklik %lld (yüzde)", r.rear, r.centerHeight)).foregroundStyle(MM.text2)
                     }
                     .font(.system(size: 11.5, design: .monospaced)).foregroundStyle(MM.text)
                     .lineLimit(1).minimumScaleFactor(0.8)
-                    Button { s.resetZoneLayout() } label: {
-                        Text(L("Varsayılana dön")).font(.system(size: 12))
+                    Button { MainWindow.Page.zones.open() } label: {
+                        Text(L("Bölgeleri düzenle ›")).font(.system(size: 12))
                             .foregroundStyle(MM.text)
                             .padding(.horizontal, 10).frame(height: 26)
                             .background(MM.card, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(MM.line, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
-                    .help(L("Bölgeleri varsayılan boyutlarına (Sol 35 · Orta 30 · Sağ 35 · Arka 40 · Orta yükseklik 60) döndürür"))
                 }
                 VStack(alignment: .leading, spacing: 6) {
                     legend(fill: MM.accentSoft, stroke: MM.accent, L("Orta bölge"))
@@ -81,6 +82,7 @@ struct GesturesPage: View {
                         .help(L("Sağ tıklama alanını macOS belirler; buradaki sağ bölge yalnız Merlin Mouse hareketleri içindir."))
                     legend(fill: MM.bttBg, stroke: MM.bttDot, L("Arka (logo): dokunma hareketleri"))
                         .help(L("Arka bölgeye yalnız dokunma ve çift dokunma atanabilir; avuç değerken tetiklenmez."))
+                    legend(fill: MM.okDot.opacity(0.2), stroke: MM.okDot, L("Kenar şeritleri: ses / parlaklık"))
                 }
                 Spacer(minLength: 0)
             }
@@ -88,8 +90,6 @@ struct GesturesPage: View {
         }
         .frame(width: 280)
     }
-
-    private func pct(_ v: Double) -> Int { Int((v * 100).rounded()) }
 
     private func legend(fill: Color, stroke: Color, _ text: String) -> some View {
         HStack(spacing: 8) {

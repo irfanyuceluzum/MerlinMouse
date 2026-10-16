@@ -130,6 +130,7 @@ struct BindingListView: View {
         case .doubleTap: return (L("Basmadan, çift dokunuş"), false)
         case .swipe: return (LF("%@ · kaydırma", fingers), false)
         case .pinch: return (LF("%@ · çimdikleme", fingers), false)
+        case .edgeSlide: return (L("Tek parmak · kenar şeridi"), false)
         }
     }
 

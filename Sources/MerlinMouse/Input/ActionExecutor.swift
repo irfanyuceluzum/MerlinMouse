@@ -21,15 +21,66 @@ enum ActionExecutor {
             openApp(path: path, name: name)
         case .runShortcut(let name):
             runShortcut(name)
+        case .volume, .brightness, .stepShortcut:
+            // Adım eylemleri yalnız kenar kaydırmayla çalışır (`step`); tek seferlik tetikte yok sayılır.
+            break
         }
     }
 
-    /// Bir yakınlaştırma adımı: +1 yakınlaştır, −1 uzaklaştır (`pinchInvert` açıksa ters).
+    /// Kenar kaydırmanın bir adımı: +1 artır, −1 azalt (yön çevirme çağıranda yapılır).
+    static func step(action: GestureAction, direction: Int) {
+        guard direction != 0 else { return }
+        let up = direction > 0
+        switch action {
+        case .volume:
+            postMediaKey(up ? MediaKey.soundUp : MediaKey.soundDown)
+        case .brightness:
+            postMediaKey(up ? MediaKey.brightnessUp : MediaKey.brightnessDown)
+        case .zoom(let style, let modifiers):
+            zoomStep(direction: direction, style: style, modifiers: modifiers, honorPinchInvert: false)
+        case .stepShortcut(let upCombo, let downCombo):
+            postKey(up ? upCombo : downCombo)
+        default:
+            break
+        }
+    }
+
+    /// NX_KEYTYPE_* medya tuşu kodları (IOKit hidsystem/ev_keymap.h).
+    enum MediaKey {
+        static let soundUp: Int = 0
+        static let soundDown: Int = 1
+        static let brightnessUp: Int = 2
+        static let brightnessDown: Int = 3
+        /// NSEvent.EventSubtype: NX_SUBTYPE_AUX_CONTROL_BUTTONS.
+        static let auxControlSubtype: Int16 = 8
+        static let keyDown: Int = 0xA
+        static let keyUp: Int = 0xB
+    }
+
+    /// Medya tuşuna basıp bırakır (sistem tanımlı olay). `edgeFineSteps` açıksa ⇧⌥ eklenir: macOS ses ve
+    /// parlaklığı çeyrek adımla değiştirir.
+    private static func postMediaKey(_ key: Int) {
+        var extra: NSEvent.ModifierFlags = []
+        if Settings.shared.edgeFineSteps { extra = [.shift, .option] }
+        for state in [MediaKey.keyDown, MediaKey.keyUp] {
+            let flags = NSEvent.ModifierFlags(rawValue: UInt(state << 8)).union(extra)
+            guard let event = NSEvent.otherEvent(with: .systemDefined, location: .zero, modifierFlags: flags,
+                                                 timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: 0,
+                                                 context: nil, subtype: MediaKey.auxControlSubtype,
+                                                 data1: (key << 16) | (state << 8), data2: -1),
+                  let cg = event.cgEvent else { continue }
+            cg.setIntegerValueField(.eventSourceUserData, value: InputTap.syntheticTag)
+            cg.post(tap: .cghidEventTap)
+        }
+    }
+
+    /// Bir yakınlaştırma adımı: +1 yakınlaştır, −1 uzaklaştır (`honorPinchInvert` ve `pinchInvert` açıksa ters).
     /// `wheel`: tek satırlık tekerlek olayı (düzenleyiciler bayraklara, örn. ⌃ + tekerlek);
     /// `keys`: ⌘+ / ⌘− (sayısal tuş takımı); `gesture`: tek seferlik başladı / değişti / bitti büyütme hareketi.
-    static func zoomStep(direction: Int, style: ZoomStyle, modifiers: [String] = []) {
+    static func zoomStep(direction: Int, style: ZoomStyle, modifiers: [String] = [], honorPinchInvert: Bool = true) {
         guard direction != 0 else { return }
-        let zoomIn = (Settings.shared.pinchInvert ? -direction : direction) > 0
+        let invert = honorPinchInvert && Settings.shared.pinchInvert
+        let zoomIn = (invert ? -direction : direction) > 0
         switch style {
         case .wheel:
             let mods = GestureAction.zoomModifiers(modifiers, style: .wheel)

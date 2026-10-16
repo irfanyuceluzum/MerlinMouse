@@ -6,11 +6,13 @@ import UserNotifications
 import MerlinCore
 
 struct Warning: Identifiable, Hashable {
-    enum Source { case macOS, btt }
+    enum Source { case macOS, btt, otherApp }
     var id: String { title }
     var source: Source
     var title: String
     var detail: String
+    /// `.otherApp` için çalışan uygulamanın paket kimliği ("Uygulamayı göster").
+    var bundleID: String? = nil
 }
 
 /// Uygulamanın canlı durumu: izin, aygıt, son eylem, uyarılar.
@@ -21,6 +23,8 @@ final class AppModel: ObservableObject {
     @Published var trusted = false
     @Published var miceCount = 0
     @Published var deviceInfo = ""
+    /// Bağlı dokunma aygıtları; aygıtı olmayan türün ayarları pasiftir.
+    @Published var devicePresence = DevicePresence.none
     /// Son eylemin metni; nil iken arayüz "Henüz yok" gösterir.
     @Published var lastAction: String?
     @Published var liveTouches: [Touch] = []
@@ -54,6 +58,7 @@ final class AppModel: ObservableObject {
         TouchMonitor.shared.onFrame = { [weak self] touches in self?.liveTouches = touches }
         TouchMonitor.shared.onGesture = { GestureDispatcher.handle($0) }
         TouchMonitor.shared.onPinch = { GestureDispatcher.handlePinch($0) }
+        TouchMonitor.shared.onEdge = { GestureDispatcher.handleEdge($0) }
         mouseImage = MouseArtwork.load()
         updateGestureConfig()
         FrontApp.shared.$bundleID
@@ -83,6 +88,12 @@ final class AppModel: ObservableObject {
             // Bluetooth geç toparlanabilir: 5 sn sonra bir kez daha dene.
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.startTouches() }
         }
+        // Başka bir fare uygulaması açılınca/kapanınca çakışma uyarıları 10 sn'lik turu beklemeden yenilenir.
+        for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
+            NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.refreshWarnings()
+            }
+        }
         // Erişilebilirlik izinleri değişince macOS bu bildirimi yollar; izin geri alındıysa yakalayıcı
         // 2 sn'lik turu beklemeden kalksın. TCC kaydı gecikebildiği için kısa aralıklarla birkaç kez bakılır.
         DistributedNotificationCenter.default().addObserver(
@@ -101,8 +112,11 @@ final class AppModel: ObservableObject {
         settings.objectWillChange
             .debounce(for: .milliseconds(100), scheduler: RunLoop.main)
             .sink { [weak self] _ in
-                // Kapatılınca süren yakınlaştırma da biter.
-                if !Settings.shared.enabled { GestureDispatcher.endPinchSession() }
+                // Kapatılınca süren yakınlaştırma ve kenar kaydırma da biter.
+                if !Settings.shared.enabled {
+                    GestureDispatcher.endPinchSession()
+                    GestureDispatcher.endEdgeSession()
+                }
                 self?.refreshWarnings()
                 self?.updateGestureConfig()
             }
@@ -116,13 +130,19 @@ final class AppModel: ObservableObject {
             .store(in: &cancellables)
     }
 
-    /// Tanıyıcıya güncel bölge düzenini, çimdikleme ayarını ve (indeks kopyasıyla) çift dokunma sorgusunu verir.
+    /// Tanıyıcıya güncel bölge düzenini, çimdikleme ve kenar kaydırma ayarlarını ve (indeks kopyasıyla)
+    /// çift dokunma sorgusunu verir. Kenar yalnız öndeki uygulama için açık ve geçerli bir ataması varsa etkindir.
     private func updateGestureConfig() {
         let index = BindingStore.shared.index
         let bundleID = FrontApp.shared.bundleID
         let wantsPinch = index.match(Trigger(kind: .pinch, fingers: 2), bundleID: bundleID) != nil
+        let edgeSides = Set(EdgeSide.allCases.filter {
+            index.match(Trigger(kind: .edgeSlide, zone: $0.zone), bundleID: bundleID)?.action.isStepAction == true
+        })
         TouchMonitor.shared.configure(layout: settings.zoneLayout, pinchStep: settings.pinchStep,
-                                      wantsPinch: wantsPinch) { fingers, zone in
+                                      wantsPinch: wantsPinch, edgeWidth: settings.edgeWidth,
+                                      edgeStep: settings.edgeStep, edgeBounds: settings.edgeBounds,
+                                      edgeSides: edgeSides) { fingers, zone in
             index.hasDoubleTap(fingers: fingers, zone: zone, bundleID: bundleID)
                 || (fingers == 4 && index.hasDoubleTap(fingers: 3, zone: zone, bundleID: bundleID))
         }
@@ -164,12 +184,19 @@ final class AppModel: ObservableObject {
 
     func startTouches() {
         changeLogged = false
-        // Aygıt yeniden başlarken kalkış karesi gelmeyebilir; yakınlaştırma takılı kalmasın.
+        // Aygıt yeniden başlarken kalkış karesi gelmeyebilir; yakınlaştırma ve kenar kaydırma takılı kalmasın.
         GestureDispatcher.endPinchSession()
+        GestureDispatcher.endEdgeSession()
         let found = TouchMonitor.shared.start()
         if found != miceCount { Log.write("Magic Mouse: \(found) · \(TouchMonitor.shared.deviceDescription)") }
         miceCount = found
         deviceInfo = TouchMonitor.shared.deviceDescription
+        // Aygıt varlığı (fare + trackpad); trackpad yalnız sayılır, akışı başlatılmaz.
+        let presence = TouchMonitor.shared.devicePresence(startedMice: found)
+        if presence.trackpads != devicePresence.trackpads {
+            Log.write("Trackpad: \(presence.trackpads)\(presence.builtInTrackpad ? " (dahili)" : "")")
+        }
+        devicePresence = presence
     }
 
     func checkTrust(prompt: Bool) {
@@ -189,6 +216,7 @@ final class AppModel: ObservableObject {
         if !nowTrusted && InputTap.shared.isRunning {
             InputTap.shared.stop()
             GestureDispatcher.endPinchSession()
+            GestureDispatcher.endEdgeSession()
             Log.write("İzin yok: olay yakalayıcı durduruldu")
         }
         if trusted && !resetInProgress && !InputTap.shared.isRunning {
@@ -231,6 +259,7 @@ final class AppModel: ObservableObject {
     func pause(for interval: TimeInterval) {
         settings.pausedUntil = PauseState.pausing(for: interval, from: Date()).pausedUntil
         GestureDispatcher.endPinchSession()
+        GestureDispatcher.endEdgeSession()
         Log.write("Duraklatıldı · \(Int(interval / 60)) dk")
         objectWillChange.send()
     }
@@ -287,6 +316,7 @@ final class AppModel: ObservableObject {
         resetInProgress = true
         InputTap.shared.stop()
         GestureDispatcher.endPinchSession()
+        GestureDispatcher.endEdgeSession()
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
@@ -340,7 +370,7 @@ final class AppModel: ObservableObject {
     }
 }
 
-/// macOS fare hareketleri ve BetterTouchTool ile çakışmaları bulur (ConflictChecker ile).
+/// macOS fare hareketleri ve BetterTouchTool ile çakışmaları (ConflictChecker ile) ve çalışan diğer fare uygulamalarını bulur.
 enum SystemCheck {
     private static func mouseValue(_ key: String) -> Int? {
         for domain in ["com.apple.AppleMultitouchMouse", "com.apple.driver.AppleBluetoothMultitouch.mouse"] {
@@ -396,6 +426,22 @@ enum SystemCheck {
                 }
             }
         }
+        // Çalışan diğer fare uygulamaları (atama olmasa da gösterilir).
+        let running = NSWorkspace.shared.runningApplications
+        let utilities = MouseUtilityCatalog.detect(running: running.map { (bundleID: $0.bundleIdentifier, name: $0.localizedName) })
+        for u in utilities where seen.insert(u.warningTitle).inserted {
+            let matching = running.filter { u.matches(bundleID: $0.bundleIdentifier, name: $0.localizedName) }
+            // Öne getirilecek uygulama: varsa normal (Dock'ta görünen) olanı, yoksa ilk eşleşen.
+            let app = matching.first { $0.activationPolicy == .regular } ?? matching.first
+            result.append(Warning(source: .otherApp, title: u.warningTitle, detail: u.warningDetail,
+                                  bundleID: app?.bundleIdentifier))
+        }
         return result
+    }
+
+    /// `.otherApp` uyarısındaki uygulamayı öne getirir.
+    static func activateApp(bundleID: String) {
+        let apps = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+        (apps.first { $0.activationPolicy == .regular } ?? apps.first)?.activate()
     }
 }

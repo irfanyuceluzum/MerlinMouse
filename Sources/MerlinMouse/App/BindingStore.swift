@@ -49,12 +49,13 @@ final class BindingStore: ObservableObject {
             file.save(loaded)
             Log.write("Temel hareketler işaretlendi: \(n)")
         }
-        // Sonradan eklenen temel çimdikleme (yeni kurulumda da buradan gelir).
-        let withPinch = BindingMigrations.addMissingPinch(loaded.bindings)
-        if withPinch.count != loaded.bindings.count {
-            loaded.bindings = withPinch
+        // Sonradan eklenen temel atamalar: çimdikleme (açık), sol ve sağ kenar (kapalı); yeni kurulumda da buradan gelir.
+        let withLater = BindingMigrations.addMissingBuiltIns(loaded.bindings)
+        if withLater.count != loaded.bindings.count {
+            let added = withLater.dropFirst(loaded.bindings.count).compactMap(\.builtInKey)
+            loaded.bindings = withLater
             file.save(loaded)
-            Log.write("Temel çimdikleme ataması eklendi")
+            Log.write("Temel atamalar eklendi: \(added.joined(separator: ", "))")
         }
         // Açık eşi olan gereksiz kapalı kopyaları temizle.
         let deduped = BindingMigrations.collapseRedundantDisabledCopies(loaded.bindings)

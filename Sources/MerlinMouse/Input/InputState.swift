@@ -11,9 +11,18 @@ final class InputState {
     /// `GestureDispatcher.endPinchSession()` kullan; açık büyütme hareketini de bitirir.
     var pinchActive = false
 
-    /// Kuru deneme: eşleşen atama yalnız raporlanır, olay değişmez ve eylem çalışmaz (Deneme modu sayfası).
-    /// Açılınca süren çimdikleme oturumu kapanır.
+    /// Kenar hareketi başladı (gerçek kaydırma düşürülür; adaylıkta geçer). `TouchMonitor` tanıyıcının canlı
+    /// durumunu yazar; kapanış yollarında `GestureDispatcher.endEdgeSession()` sıfırlar.
+    var edgeActive = false
+
+    /// Kuru deneme: eşleşen atama yalnız raporlanır, olay değişmez ve eylem çalışmaz (Bölgeler sayfası).
+    /// Açılınca süren çimdikleme ve kenar kaydırma oturumu kapanır.
     var dryRun = false {
-        didSet { if dryRun && !oldValue { GestureDispatcher.endPinchSession() } }
+        didSet {
+            if dryRun && !oldValue {
+                GestureDispatcher.endPinchSession()
+                GestureDispatcher.endEdgeSession()
+            }
+        }
     }
 }

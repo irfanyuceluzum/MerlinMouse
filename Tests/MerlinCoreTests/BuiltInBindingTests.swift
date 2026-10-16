@@ -20,11 +20,39 @@ final class BuiltInBindingTests: XCTestCase {
     }
 
     func testPinchDefinition() {
-        let d = DefaultBindings.definitions.last
-        XCTAssertEqual(d?.key, "pinch")
+        let d = DefaultBindings.definitions.first { $0.key == "pinch" }
         XCTAssertEqual(d?.trigger, Trigger(kind: .pinch, fingers: 2).normalized)
         XCTAssertEqual(d?.action, .zoom(style: .gesture, modifiers: []))
         XCTAssertEqual(d?.title, "İki parmakla çimdikle")
+        XCTAssertEqual(d?.defaultEnabled, true)
+    }
+
+    func testEdgeDefinitions() {
+        XCTAssertEqual(DefaultBindings.definitions.suffix(3).map(\.key), ["pinch", "edge-left", "edge-right"])
+        XCTAssertEqual(DefaultBindings.laterKeys, ["pinch", "edge-left", "edge-right"])
+        let left = DefaultBindings.definitions.first { $0.key == "edge-left" }
+        let right = DefaultBindings.definitions.first { $0.key == "edge-right" }
+        XCTAssertEqual(left?.trigger, Trigger(kind: .edgeSlide, zone: .leftEdge).normalized)
+        XCTAssertEqual(right?.trigger, Trigger(kind: .edgeSlide, zone: .rightEdge).normalized)
+        XCTAssertEqual(left?.action, .volume)
+        XCTAssertEqual(right?.action, .brightness)
+        XCTAssertEqual(left?.defaultEnabled, false)
+        XCTAssertEqual(right?.defaultEnabled, false)
+        XCTAssertEqual(left?.title, left?.trigger.title)
+        XCTAssertEqual(right?.title, right?.trigger.title)
+        XCTAssertEqual(left?.title, "Sol kenarda kaydır")
+        XCTAssertEqual(right?.title, "Sağ kenarda kaydır")
+        // İlk beşi açık gelir.
+        XCTAssertTrue(DefaultBindings.definitions.prefix(5).allSatisfy(\.defaultEnabled))
+    }
+
+    func testResetEdgeKeepsEnabled() {
+        let b = GestureBinding(trigger: Trigger(kind: .edgeSlide, zone: .leftEdge), action: .brightness,
+                               enabled: true, builtInKey: "edge-left")
+        let r = DefaultBindings.resetToDefault(b)
+        XCTAssertEqual(r.action, .volume)
+        XCTAssertEqual(r.trigger, Trigger(kind: .edgeSlide, zone: .leftEdge).normalized)
+        XCTAssertTrue(r.enabled)
     }
 
     func testResetToDefault() {

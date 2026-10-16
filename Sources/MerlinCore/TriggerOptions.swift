@@ -3,7 +3,7 @@ import Foundation
 /// Düzenleyicide sunulan tetik seçenekleri ve geçersiz birleşimleri düzelten kural.
 public enum TriggerOptions {
     /// v1'de "basılı tut" arayüzde yok.
-    public static let editableKinds: [GestureKind] = [.press, .tap, .doubleTap, .swipe, .pinch]
+    public static let editableKinds: [GestureKind] = [.press, .tap, .doubleTap, .swipe, .pinch, .edgeSlide]
 
     public static func fingerChoices(kind: GestureKind) -> [Int] {
         switch kind {
@@ -12,12 +12,14 @@ public enum TriggerOptions {
         case .doubleTap: return [1, 2, 3, 4]
         case .swipe: return [3, 4]
         case .pinch: return [2]
+        case .edgeSlide: return [1]
         case .hold: return []
         }
     }
 
-    /// Bölge yalnız tek parmakta ve tuşsuz tetikte seçilir.
+    /// Bölge yalnız tek parmakta ve tuşsuz tetikte seçilir; kenar şeritleri yalnız kenar kaydırmada.
     public static func zoneChoices(kind: GestureKind, fingers: Int, modifier: PressModifier) -> [Zone] {
+        if kind == .edgeSlide { return [.leftEdge, .rightEdge] }
         guard fingers == 1, modifier == .none else { return [] }
         switch kind {
         case .press: return [.center, .right]

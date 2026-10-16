@@ -75,11 +75,20 @@ enum ShortcutsCLI {
 
 private enum EditorActionKind: String, CaseIterable, Identifiable {
     case middle, middleDrag, back, forward, shortcut, system, openApp, runShortcut, zoom
+    case volume, brightness, pair
     var id: String { rawValue }
 
-    /// Tetik türüne göre sunulan eylemler: çimdiklemede yalnız yakınlaştırma, diğerlerinde o hariç hepsi.
+    /// Adım eylemleri (kenar kaydırma ve çimdikleme dışında sunulmaz).
+    static let stepKinds: [EditorActionKind] = [.volume, .brightness, .zoom, .pair]
+
+    /// Tetik türüne göre sunulan eylemler: çimdiklemede yalnız yakınlaştırma, kenar kaydırmada adım
+    /// eylemleri, diğerlerinde adım eylemleri hariç hepsi.
     static func choices(for kind: GestureKind) -> [EditorActionKind] {
-        kind == .pinch ? [.zoom] : allCases.filter { $0 != .zoom }
+        switch kind {
+        case .pinch: return [.zoom]
+        case .edgeSlide: return stepKinds
+        default: return allCases.filter { !stepKinds.contains($0) }
+        }
     }
 
     var title: String {
@@ -87,6 +96,9 @@ private enum EditorActionKind: String, CaseIterable, Identifiable {
         case .middle: return L("Orta tıklama")
         case .middleDrag: return L("Düzenleyicili orta tuş")
         case .zoom: return L("Yakınlaştır / uzaklaştır")
+        case .volume: return L("Ses")
+        case .brightness: return L("Parlaklık")
+        case .pair: return L("Kısayol çifti")
         case .back: return L("Geri")
         case .forward: return L("İleri")
         case .shortcut: return L("Klavye kısayolu")
@@ -123,6 +135,9 @@ struct BindingEditorView: View {
     @State private var zoomStyle: ZoomStyle
     /// Yakınlaştırmada tekerlekle birlikte tutulan isteğe bağlı tuşlar (yalnız `wheel`; varsayılan hiçbiri).
     @State private var zoomMods: [String]
+    /// Kısayol çiftinin artırma ve azaltma kısayolları.
+    @State private var pairUp: KeyCombo
+    @State private var pairDown: KeyCombo
     @State private var scope: AppChoice?
     @State private var shortcutList: [String] = []
     @State private var env = AppModel.shared.conflictEnvironment()
@@ -130,7 +145,17 @@ struct BindingEditorView: View {
 
     private static let otherTag = "__other__"
 
-    init(existing: GestureBinding?, presetScope: AppChoice? = nil) {
+    /// Hazır hareket ızgarasındaki tetikler: genel hazırlar ve iki kenar kaydırma.
+    private static let edgeTriggers = [Trigger(kind: .edgeSlide, zone: .leftEdge).normalized,
+                                       Trigger(kind: .edgeSlide, zone: .rightEdge).normalized]
+    private static func isPreset(_ t: Trigger) -> Bool {
+        let n = t.normalized
+        return GesturePresets.all.contains { $0.trigger == n } || edgeTriggers.contains(n)
+    }
+
+    /// `presetAction` verilirse alanlar kayıtlı eylem yerine onunla açılır (örn. Kaydırma sayfasında
+    /// "Kısayol çifti…" seçildiğinde); kaydedilene kadar hiçbir şey değişmez.
+    init(existing: GestureBinding?, presetScope: AppChoice? = nil, presetAction: GestureAction? = nil) {
         id = existing?.id ?? UUID()
         enabled = existing?.enabled ?? true
         isEditing = existing != nil
@@ -147,7 +172,7 @@ struct BindingEditorView: View {
         initialTrigger = start
         initialScope = startScope
         _trigger = State(initialValue: start)
-        _custom = State(initialValue: !GesturePresets.all.contains { $0.trigger == start.normalized })
+        _custom = State(initialValue: !Self.isPreset(start))
         var k = EditorActionKind.middle
         var c = KeyCombo(keyCode: 0, modifiers: [], display: "")
         var s = SystemAction.missionControl
@@ -155,7 +180,8 @@ struct BindingEditorView: View {
         var mods = ["shift"]
         var zMods: [String] = []
         var zStyle = ZoomStyle.gesture
-        switch existing?.action ?? .middleClick {
+        var pUp = Self.emptyCombo, pDown = Self.emptyCombo
+        switch presetAction ?? existing?.action ?? .middleClick {
         case .middleClick: k = .middle
         case .middleDrag(let m): k = .middleDrag; mods = GestureAction.normalizedModifiers(m)
         case .zoom(let st, let m): k = .zoom; zStyle = st; zMods = GestureAction.zoomModifiers(m, style: st)
@@ -165,11 +191,16 @@ struct BindingEditorView: View {
         case .system(let a): k = .system; s = a
         case .openApp(let p, let n): k = .openApp; path = p; name = n
         case .runShortcut(let n): k = .runShortcut; sc = n
+        case .volume: k = .volume
+        case .brightness: k = .brightness
+        case .stepShortcut(let u, let d): k = .pair; pUp = u; pDown = d
         }
         _kind = State(initialValue: k)
         _dragMods = State(initialValue: mods)
         _zoomStyle = State(initialValue: zStyle)
         _zoomMods = State(initialValue: zMods)
+        _pairUp = State(initialValue: pUp)
+        _pairDown = State(initialValue: pDown)
         _combo = State(initialValue: c)
         _sysAction = State(initialValue: s)
         _appPath = State(initialValue: path)
@@ -189,8 +220,13 @@ struct BindingEditorView: View {
         case .system: return .system(sysAction)
         case .openApp: return .openApp(path: appPath, name: appName)
         case .runShortcut: return .runShortcut(name: shortcutName)
+        case .volume: return .volume
+        case .brightness: return .brightness
+        case .pair: return .stepShortcut(up: pairUp, down: pairDown)
         }
     }
+
+    private static let emptyCombo = KeyCombo(keyCode: 0, modifiers: [], display: "")
 
     private func binding(for t: Trigger) -> GestureBinding {
         GestureBinding(id: id, trigger: t, action: action, enabled: enabled,
@@ -233,7 +269,7 @@ struct BindingEditorView: View {
 
     private func loadTrigger(_ t: Trigger) {
         trigger = t
-        custom = !GesturePresets.all.contains { $0.trigger == t.normalized }
+        custom = !Self.isPreset(t)
         picked = true
     }
 
@@ -251,6 +287,9 @@ struct BindingEditorView: View {
         case .system(let x): kind = .system; sysAction = x
         case .openApp(let p, let n): kind = .openApp; appPath = p; appName = n
         case .runShortcut(let n): kind = .runShortcut; shortcutName = n
+        case .volume: kind = .volume
+        case .brightness: kind = .brightness
+        case .stepShortcut(let u, let d): kind = .pair; pairUp = u; pairDown = d
         }
     }
 
@@ -361,12 +400,14 @@ struct BindingEditorView: View {
         .frame(width: 820, height: 700)
         .background(MM.card)
         .onAppear { env = AppModel.shared.conflictEnvironment() }
-        // Çimdikleme yalnız yakınlaştırmaya atanır; türden çıkınca eylem orta tıklamaya döner.
+        // Çimdikleme yalnız yakınlaştırmaya, kenar kaydırma yalnız adım eylemlerine atanır; uymayan eylem
+        // türe göre varsayılana döner (çimdikleme → yakınlaştırma, kenar → ses, diğerleri → orta tıklama).
         .onChange(of: trigger.kind) { _, newKind in
-            if newKind == .pinch {
-                kind = .zoom
-            } else if kind == .zoom {
-                kind = .middle
+            guard !EditorActionKind.choices(for: newKind).contains(kind) else { return }
+            switch newKind {
+            case .pinch: kind = .zoom
+            case .edgeSlide: kind = .volume
+            default: kind = .middle
             }
         }
         .onChange(of: kind) { _, newKind in
@@ -392,7 +433,17 @@ struct BindingEditorView: View {
     // MARK: Kart ızgarası
 
     private func cardStatus(_ t: Trigger) -> (text: String, dot: Color) {
-        let conflicts = ConflictChecker.check(binding(for: t), among: BindingStore.shared.bindings, env: env)
+        // Seçili eylem bu türe uymuyorsa (örn. kenar kartında orta tıklama), türün varsayılan eylemiyle bakılır;
+        // tür değişince eylem de ona döner.
+        var probe = binding(for: t)
+        if !EditorActionKind.choices(for: t.kind).contains(kind) {
+            switch t.kind {
+            case .pinch: probe.action = .zoom(style: .gesture, modifiers: [])
+            case .edgeSlide: probe.action = .volume
+            default: probe.action = .middleClick
+            }
+        }
+        let conflicts = ConflictChecker.check(probe, among: BindingStore.shared.bindings, env: env)
         switch BindingValidation.heaviest(conflicts)?.level {
         case .reserved, .unsupported: return (L("Ayrılmış"), MM.text2)
         case .duplicate: return (L("Zaten atanmış"), MM.text2)
@@ -410,6 +461,15 @@ struct BindingEditorView: View {
                 gestureCard(title: p.title, status: st.text, dot: st.dot, glyph: p.trigger,
                             selected: picked && !custom && trigger.normalized == p.trigger) {
                     trigger = p.trigger
+                    custom = false
+                    picked = true
+                }
+            }
+            ForEach(Self.edgeTriggers, id: \.self) { t in
+                let st = cardStatus(t)
+                gestureCard(title: t.title, status: st.text, dot: st.dot, glyph: t,
+                            selected: picked && !custom && trigger.normalized == t) {
+                    trigger = t
                     custom = false
                     picked = true
                 }
@@ -614,8 +674,8 @@ struct BindingEditorView: View {
         Picker(L("Hareket türü"), selection: field(\.kind)) {
             ForEach(TriggerOptions.editableKinds, id: \.self) { Text(Self.kindName($0)).tag($0) }
         }
-        // Çimdikleme her zaman iki parmak, bölgesiz ve tuşsuzdur; seçici gösterilmez.
-        if trigger.modifier == .none, trigger.kind != .pinch {
+        // Çimdikleme her zaman iki parmak, kenar kaydırma tek parmaktır; seçici gösterilmez.
+        if trigger.modifier == .none, trigger.kind != .pinch, trigger.kind != .edgeSlide {
             Picker(L("Parmak"), selection: field(\.fingers)) {
                 ForEach(TriggerOptions.fingerChoices(kind: trigger.kind), id: \.self) { Text("\($0)").tag($0) }
             }
@@ -623,7 +683,7 @@ struct BindingEditorView: View {
         }
         let zones = TriggerOptions.zoneChoices(kind: trigger.kind, fingers: trigger.fingers, modifier: trigger.modifier)
         if !zones.isEmpty {
-            Picker(L("Bölge"), selection: field(\.zone)) {
+            Picker(trigger.kind == .edgeSlide ? L("Kenar") : L("Bölge"), selection: field(\.zone)) {
                 ForEach(zones, id: \.self) { Text(Self.zoneName($0)).tag($0) }
             }
             .pickerStyle(.segmented)
@@ -648,6 +708,7 @@ struct BindingEditorView: View {
         case .doubleTap: return L("Çift dokun")
         case .swipe: return L("Kaydır")
         case .pinch: return L("Çimdikle")
+        case .edgeSlide: return L("Kenarda kaydır")
         case .hold: return L("Basılı tut")
         }
     }
@@ -659,6 +720,8 @@ struct BindingEditorView: View {
         case .center: return L("Orta")
         case .right: return L("Sağ")
         case .rear: return L("Arka (logo)")
+        case .leftEdge: return L("Sol kenar")
+        case .rightEdge: return L("Sağ kenar")
         }
     }
 
@@ -711,6 +774,12 @@ struct BindingEditorView: View {
             }
         case .shortcut:
             LabeledContent(L("Kısayol")) { ShortcutRecorder(combo: $combo) }
+        case .pair:
+            LabeledContent(L("Artır")) { ShortcutRecorder(combo: $pairUp) }
+            LabeledContent(L("Azalt")) { ShortcutRecorder(combo: $pairDown) }
+            Text(L("Yukarı kaydırmak Artır kısayolunu, aşağı kaydırmak Azalt kısayolunu her adımda bir kez gönderir."))
+                .font(.system(size: 12)).foregroundStyle(MM.text2)
+                .fixedSize(horizontal: false, vertical: true)
         case .system:
             Picker(L("Sistem eylemi"), selection: $sysAction) {
                 ForEach(SystemAction.allCases, id: \.self) { Text($0.title).tag($0) }

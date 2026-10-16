@@ -4,12 +4,12 @@ import MerlinCore
 /// Ayarların düzenlendiği ana pencere.
 struct MainWindow: View {
     enum Page: String, CaseIterable, Identifiable {
-        case gestures, test, profiles, scroll, system, migration, general
+        case gestures, zones, profiles, scroll, system, migration, general
         var id: String { rawValue }
         var title: String {
             switch self {
             case .gestures: return L("Hareketler")
-            case .test: return L("Deneme modu")
+            case .zones: return L("Bölgeler")
             case .profiles: return L("Uygulama profilleri")
             case .scroll: return L("Kaydırma")
             case .system: return L("Sistem hareketleri")
@@ -20,7 +20,7 @@ struct MainWindow: View {
         var icon: String {
             switch self {
             case .gestures: return "computermouse"
-            case .test: return "hand.tap"
+            case .zones: return "hand.tap"
             case .profiles: return "square.grid.2x2"
             case .scroll: return "arrow.up.and.down"
             case .system: return "shield"
@@ -28,6 +28,8 @@ struct MainWindow: View {
             case .general: return "gearshape"
             }
         }
+        /// Pencere açıkken başka bir sayfadan bu sayfaya geçer (`requestedPage` üzerinden).
+        func open() { AppModel.shared.requestedPage = rawValue }
     }
 
     @State private var page: Page = .gestures
@@ -90,20 +92,23 @@ struct MainWindow: View {
 
     private func row(_ p: Page) -> some View {
         let selected = p == page
+        // Sistem hareketleri rozeti: açık macOS hareketleri + çalışan diğer fare uygulamaları.
+        let systemCount = p == .system
+            ? system.onCount + model.warnings.filter { $0.source == .otherApp }.count : 0
         return Button { page = p } label: {
             HStack(spacing: 10) {
                 Image(systemName: p.icon).font(.system(size: 14, weight: .regular)).frame(width: 18)
                 Text(p.title).font(.system(size: 13, weight: selected ? .medium : .regular))
                     .lineLimit(1).minimumScaleFactor(0.85)
                 Spacer(minLength: 4)
-                if p == .system, system.onCount > 0 {
-                    Text("\(system.onCount)")
+                if systemCount > 0 {
+                    Text("\(systemCount)")
                         .font(.system(size: 11.5, weight: .semibold))
                         .padding(.horizontal, 7).padding(.vertical, 1)
                         .fixedSize()
                         .background(MM.warnBg, in: Capsule())
                         .foregroundStyle(MM.warnText)
-                        .accessibilityLabel(LF("%lld açık", system.onCount))
+                        .accessibilityLabel(LF("%lld açık", systemCount))
                 }
             }
             .foregroundStyle(selected ? MM.accentInk : MM.text)
@@ -141,7 +146,7 @@ struct MainWindow: View {
     @ViewBuilder private var detail: some View {
         switch page {
         case .gestures: GesturesPage()
-        case .test: TestModePage()
+        case .zones: TestModePage()
         case .profiles: ProfilesPage()
         case .scroll: ScrollPage()
         case .system: SystemPage()
