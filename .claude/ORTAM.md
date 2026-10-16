@@ -1,7 +1,7 @@
 # Proje profili — Merlin Mouse
 
 macOS menü çubuğu uygulaması: Magic Mouse dokunmatik yüzeyini okuyup tıklamaları
-orta tuşa ve başka eylemlere çevirir. SwiftPM paketi, Swift 5 dil modu, macOS 14+.
+orta tuşa ve başka eylemlere çevirir; trackpad için de atama yapılabilir. SwiftPM paketi, Swift 5 dil modu, macOS 15+.
 
 ## Harita
 - `Package.swift` — hedefler: `CMultitouch` (C köprüsü), `MerlinCore` (saf model/mantık), `MerlinMouse` (uygulama), `MerlinCoreTests`.
@@ -48,7 +48,10 @@ orta tuşa ve başka eylemlere çevirir. SwiftPM paketi, Swift 5 dil modu, macOS
 
 ## Korunacak davranışlar
 - Tek parmakla sol bölgeye normal sol tıklama hiçbir koşulda dönüştürülmez/geciktirilmez.
-- Dahili trackpad dinlenmez; yalnız Magic Mouse.
+- Trackpad yalnız açık bir trackpad ataması varken ya da canlı trackpad haritası görünürken dinlenir; aksi hâlde trackpad akışı hiç açılmaz.
+- Açık trackpad ataması yoksa basma yolu yalnız Magic Mouse'a bakar (bugünkü fare yolu birebir); tıklama trackpad'e atfedilip eşleşmezse fareye geri düşer.
+- Atamalar aygıta duyarlıdır: fare ve trackpad atamaları birbirini ezmez, düzenlemede aygıt korunur; magicMouse dışı kayıtlar `deviceTrigger` anahtarıyla yazılır (eski sürümler korur).
+- Erişilebilirlik izni giderse olay yakalayıcı hemen kaldırılır (AX önbellekli olduğu için canlı deneme yakalayıcısıyla yoklanır); izin sıfırlamadan önce yakalayıcı durdurulur.
 - Orta tuşla sürüklerken kaydırma engeli; 3D programlarda atalet kapatma.
 - `~/Library/Logs/MerlinMouse.log` günlüğü (başlangıç, fare, izin, her eylem).
 - `MerlinMouse --probe` tanılama çıktısı.
@@ -60,6 +63,8 @@ orta tuşa ve başka eylemlere çevirir. SwiftPM paketi, Swift 5 dil modu, macOS
 - Sentetik olay döngüsü (kendi olayını tekrar yakalamak).
 - `MTFinger` yapı düzeni belgelenmemiş; macOS güncellemesinde bozulabilir.
 - Yanlış dönüştürme: dinlenen parmaklar yüzünden normal tıklamanın orta tıka dönmesi.
+- İzin geri alınırken etkin yakalayıcının kurulu kalması tüm sistemin faresini dondurur (yaşandı; düzeltildi, korunmalı).
+- Tıklama kaynağı (fare mi trackpad mi) zamana dayalı kestirilir; iki aygıt birden kullanılırken yanlış atfetme olabilir.
 - Kapsam: uygulamaya özel atamanın genel atamayı doğru ezmesi.
 
 ## Ortam kısıtları
