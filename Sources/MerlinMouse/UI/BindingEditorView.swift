@@ -1,113 +1,6 @@
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 import MerlinCore
-
-/// Kapsam / uygulama seçimi için kimlik + ad.
-struct AppChoice: Identifiable, Hashable {
-    var id: String
-    var name: String
-}
-
-struct PickedApp {
-    var path: String
-    var name: String
-    var bundleID: String?
-}
-
-enum AppPicker {
-    /// Çalışan normal uygulamalar.
-    static func runningApps() -> [AppChoice] {
-        var seen = Set<String>()
-        return NSWorkspace.shared.runningApplications
-            .filter { $0.activationPolicy == .regular }
-            .compactMap { app -> AppChoice? in
-                guard let id = app.bundleIdentifier, seen.insert(id).inserted else { return nil }
-                return AppChoice(id: id, name: app.localizedName ?? id)
-            }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-    }
-
-    /// Uygulama seçim paneli (.app).
-    static func pickApp() -> PickedApp? {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.application]
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.directoryURL = URL(fileURLWithPath: "/Applications")
-        panel.prompt = L("Seç")
-        guard panel.runModal() == .OK, let url = panel.url else { return nil }
-        return app(at: url)
-    }
-
-    /// Paket yolundan ad ve kimlik (kimlik okunamazsa nil).
-    static func app(at url: URL) -> PickedApp {
-        let bundle = Bundle(url: url)
-        let name = (bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String)
-            ?? url.deletingPathExtension().lastPathComponent
-        return PickedApp(path: url.path, name: name, bundleID: bundle?.bundleIdentifier)
-    }
-}
-
-/// `shortcuts list` çıktısı; süreç ana iş parçacığı dışında çalışır.
-enum ShortcutsCLI {
-    static func list(_ done: @escaping ([String]) -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/usr/bin/shortcuts")
-            p.arguments = ["list"]
-            let pipe = Pipe()
-            p.standardOutput = pipe
-            p.standardError = FileHandle.nullDevice
-            var names: [String] = []
-            do {
-                try p.run()
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                p.waitUntilExit()
-                names = String(decoding: data, as: UTF8.self)
-                    .split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
-                    .filter { !$0.isEmpty }
-            } catch {}
-            DispatchQueue.main.async { done(names) }
-        }
-    }
-}
-
-private enum EditorActionKind: String, CaseIterable, Identifiable {
-    case middle, middleDrag, back, forward, shortcut, system, openApp, runShortcut, zoom
-    case volume, brightness, pair
-    var id: String { rawValue }
-
-    /// Adım eylemleri (kenar kaydırma ve çimdikleme dışında sunulmaz).
-    static let stepKinds: [EditorActionKind] = [.volume, .brightness, .zoom, .pair]
-
-    /// Tetik türüne göre sunulan eylemler: çimdiklemede yalnız yakınlaştırma, kenar kaydırmada adım
-    /// eylemleri, diğerlerinde adım eylemleri hariç hepsi.
-    static func choices(for kind: GestureKind) -> [EditorActionKind] {
-        switch kind {
-        case .pinch: return [.zoom]
-        case .edgeSlide: return stepKinds
-        default: return allCases.filter { !stepKinds.contains($0) }
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .middle: return L("Orta tıklama")
-        case .middleDrag: return L("Düzenleyicili orta tuş")
-        case .zoom: return L("Yakınlaştır / uzaklaştır")
-        case .volume: return L("Ses")
-        case .brightness: return L("Parlaklık")
-        case .pair: return L("Kısayol çifti")
-        case .back: return L("Geri")
-        case .forward: return L("İleri")
-        case .shortcut: return L("Klavye kısayolu")
-        case .system: return L("Sistem eylemi")
-        case .openApp: return L("Uygulama aç")
-        case .runShortcut: return L("Kestirme çalıştır")
-        }
-    }
-}
 
 /// Atama ekleme / düzenleme sayfası: hazır hareket kartları, tek çakışma kartı, eylem ve kapsam.
 struct BindingEditorView: View {
@@ -147,17 +40,6 @@ struct BindingEditorView: View {
 
     private static let otherTag = "__other__"
 
-    /// Hazır hareket ızgarasındaki tetikler: aygıtın hazırları ve (yalnız farede) iki kenar kaydırma.
-    private static let mouseEdgeTriggers = [Trigger(kind: .edgeSlide, zone: .leftEdge).normalized,
-                                            Trigger(kind: .edgeSlide, zone: .rightEdge).normalized]
-    private static func edgeTriggers(for device: InputDeviceKind) -> [Trigger] {
-        device == .magicMouse ? mouseEdgeTriggers : []
-    }
-    private static func isPreset(_ t: Trigger, device: InputDeviceKind) -> Bool {
-        let n = t.normalized
-        return GesturePresets.presets(for: device).contains { $0.trigger == n } || edgeTriggers(for: device).contains(n)
-    }
-
     /// `presetAction` verilirse alanlar kayıtlı eylem yerine onunla açılır (örn. Kaydırma sayfasında
     /// "Kısayol çifti…" seçildiğinde); kaydedilene kadar hiçbir şey değişmez. `device` yalnız yeni atamada
     /// kullanılır; mevcut atama kendi aygıtında kalır.
@@ -181,7 +63,7 @@ struct BindingEditorView: View {
         initialTrigger = start
         initialScope = startScope
         _trigger = State(initialValue: start)
-        _custom = State(initialValue: !Self.isPreset(start, device: dev))
+        _custom = State(initialValue: !EditorTriggerGrid.isPreset(start, device: dev))
         var k = EditorActionKind.middle
         var c = KeyCombo(keyCode: 0, modifiers: [], display: "")
         var s = SystemAction.missionControl
@@ -280,7 +162,7 @@ struct BindingEditorView: View {
 
     private func loadTrigger(_ t: Trigger) {
         trigger = t
-        custom = !Self.isPreset(t, device: device)
+        custom = !EditorTriggerGrid.isPreset(t, device: device)
         picked = true
     }
 
@@ -370,7 +252,9 @@ struct BindingEditorView: View {
                         .padding(.horizontal, 24).padding(.bottom, 12)
                     }
 
-                    cardGrid.padding(.horizontal, 24)
+                    EditorTriggerGrid(device: device, kind: kind, env: env, makeBinding: binding(for:),
+                                      trigger: $trigger, custom: $custom, picked: $picked)
+                        .padding(.horizontal, 24)
                     if custom && picked { customFields.padding(.horizontal, 24).padding(.top, 12) }
 
                     conflictArea(result.conflicts).padding(.horizontal, 24).padding(.top, 16)
@@ -379,7 +263,11 @@ struct BindingEditorView: View {
                         MMCard(padding: 16) {
                             VStack(alignment: .leading, spacing: 10) {
                                 MMSectionLabel(L("Eylem"))
-                                actionFields
+                                EditorActionPicker(triggerKind: trigger.kind, kind: $kind, combo: $combo,
+                                                   sysAction: $sysAction, appPath: $appPath, appName: $appName,
+                                                   shortcutName: $shortcutName, dragMods: $dragMods,
+                                                   zoomStyle: $zoomStyle, zoomMods: $zoomMods,
+                                                   pairUp: $pairUp, pairDown: $pairDown, shortcutList: $shortcutList)
                                 if let m = result.missing {
                                     Text(m).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(MM.warnText)
                                 }
@@ -448,94 +336,6 @@ struct BindingEditorView: View {
         } message: {
             Text(verbatim: "\(trigger.title) → \(action.title)")
         }
-    }
-
-    // MARK: Kart ızgarası
-
-    private func cardStatus(_ t: Trigger) -> (text: String, dot: Color) {
-        // Seçili eylem bu türe uymuyorsa (örn. kenar kartında orta tıklama), türün varsayılan eylemiyle bakılır;
-        // tür değişince eylem de ona döner.
-        var probe = binding(for: t)
-        if !EditorActionKind.choices(for: t.kind).contains(kind) {
-            switch t.kind {
-            case .pinch: probe.action = .zoom(style: .gesture, modifiers: [])
-            case .edgeSlide: probe.action = .volume
-            default: probe.action = .middleClick
-            }
-        }
-        let conflicts = ConflictChecker.check(probe, among: BindingStore.shared.bindings, env: env)
-        switch BindingValidation.heaviest(conflicts)?.level {
-        case .reserved, .unsupported: return (L("Ayrılmış"), MM.text2)
-        case .duplicate: return (L("Zaten atanmış"), MM.text2)
-        case .replacesDisabled: return (L("Kapalı ataması var"), MM.text2)
-        case .macOS: return (L("macOS kullanıyor"), MM.warnDot)
-        case .btt: return (L("BetterTouchTool'da atanmış"), MM.bttDot)
-        default: return (L("Serbest"), MM.accent)
-        }
-    }
-
-    private var cardGrid: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
-            ForEach(Array(GesturePresets.presets(for: device).enumerated()), id: \.offset) { _, p in
-                let st = cardStatus(p.trigger)
-                gestureCard(title: p.title, status: st.text, dot: st.dot, glyph: p.trigger,
-                            selected: picked && !custom && trigger.normalized == p.trigger) {
-                    trigger = p.trigger
-                    custom = false
-                    picked = true
-                }
-            }
-            ForEach(Self.edgeTriggers(for: device), id: \.self) { t in
-                let st = cardStatus(t)
-                gestureCard(title: t.title, status: st.text, dot: st.dot, glyph: t,
-                            selected: picked && !custom && trigger.normalized == t) {
-                    trigger = t
-                    custom = false
-                    picked = true
-                }
-            }
-            gestureCard(title: L("Özel hareket…"),
-                        status: device == .trackpad ? L("Tür ve parmak sayısını kendin seç") : L("Tür, parmak ve bölgeyi kendin seç"),
-                        dot: nil,
-                        glyph: picked && custom ? trigger : nil, selected: picked && custom) {
-                custom = true
-                picked = true
-            }
-        }
-    }
-
-    /// `glyph` nil ise (özel hareket seçilmemişken) simge yerine ayar simgesi durur; hizalama bozulmaz.
-    private func gestureCard(title: String, status: String, dot: Color?, glyph: Trigger?, selected: Bool,
-                             action: @escaping () -> Void) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-        return Button(action: action) {
-            HStack(alignment: .center, spacing: 10) {
-                if let glyph {
-                    GestureGlyphView(trigger: glyph, device: device)
-                } else {
-                    Image(systemName: "slider.horizontal.3").font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(MM.text2)
-                        .frame(width: CGFloat(GestureGlyph.width), height: CGFloat(GestureGlyph.height))
-                        .accessibilityHidden(true)
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(title).font(.system(size: 14, weight: .medium)).foregroundStyle(MM.text).lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                        Spacer(minLength: 0)
-                        if let dot { Circle().fill(dot).frame(width: 10, height: 10) }
-                    }
-                    Text(status).font(.system(size: 12)).foregroundStyle(MM.text2).lineLimit(1)
-                }
-            }
-            .padding(.horizontal, 12).padding(.vertical, 10)
-            .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
-            .background(selected ? MM.accentSoft : MM.card, in: shape)
-            .overlay(shape.strokeBorder(selected ? MM.accent : MM.line, lineWidth: selected ? 2 : 1))
-            .contentShape(shape)
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     // MARK: Özel hareket
@@ -774,110 +574,6 @@ struct BindingEditorView: View {
         case .left: return L("Sola")
         case .right: return L("Sağa")
         }
-    }
-
-    // MARK: Eylem
-
-    @ViewBuilder private var actionFields: some View {
-        Picker(L("Eylem"), selection: $kind) {
-            ForEach(EditorActionKind.choices(for: trigger.kind)) { Text($0.title).tag($0) }
-        }
-        switch kind {
-        case .middleDrag:
-            LabeledContent(L("Düzenleyici tuşlar")) {
-                HStack(spacing: 6) {
-                    ForEach(GestureAction.middleDragModifierOrder, id: \.self) { modifierChip($0, in: $dragMods) }
-                }
-            }
-        case .zoom:
-            Picker(L("Yöntem"), selection: $zoomStyle) {
-                ForEach(ZoomStyle.allCases, id: \.self) { Text(Self.zoomStyleName($0)).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            Text(Self.zoomStyleHint(zoomStyle))
-                .font(.system(size: 12)).foregroundStyle(MM.text2)
-                .fixedSize(horizontal: false, vertical: true)
-            if zoomStyle == .wheel {
-                LabeledContent(L("Tekerlekle birlikte tut (isteğe bağlı)")) {
-                    HStack(spacing: 6) {
-                        ForEach(GestureAction.middleDragModifierOrder, id: \.self) { modifierChip($0, in: $zoomMods) }
-                    }
-                }
-            }
-        case .shortcut:
-            LabeledContent(L("Kısayol")) { ShortcutRecorder(combo: $combo) }
-        case .pair:
-            LabeledContent(L("Artır")) { ShortcutRecorder(combo: $pairUp) }
-            LabeledContent(L("Azalt")) { ShortcutRecorder(combo: $pairDown) }
-            Text(L("Yukarı kaydırmak Artır kısayolunu, aşağı kaydırmak Azalt kısayolunu her adımda bir kez gönderir."))
-                .font(.system(size: 12)).foregroundStyle(MM.text2)
-                .fixedSize(horizontal: false, vertical: true)
-        case .system:
-            Picker(L("Sistem eylemi"), selection: $sysAction) {
-                ForEach(SystemAction.allCases, id: \.self) { Text($0.title).tag($0) }
-            }
-        case .openApp:
-            LabeledContent(L("Uygulama")) {
-                Button(appName.isEmpty ? L("Seç…") : appName) {
-                    if let p = AppPicker.pickApp() { appPath = p.path; appName = p.name }
-                }
-            }
-        case .runShortcut:
-            HStack {
-                TextField(L("Kestirme adı"), text: $shortcutName)
-                Menu(L("Seç")) {
-                    if shortcutList.isEmpty { Text(L("Kestirme bulunamadı")) }
-                    ForEach(shortcutList, id: \.self) { n in Button(n) { shortcutName = n } }
-                }
-                .fixedSize()
-            }
-            .onAppear { if shortcutList.isEmpty { ShortcutsCLI.list { shortcutList = $0 } } }
-        default:
-            EmptyView()
-        }
-    }
-
-    private static func zoomStyleName(_ s: ZoomStyle) -> String {
-        switch s {
-        case .gesture: return L("Trackpad hareketi")
-        case .wheel: return L("Fare tekerleği")
-        case .keys: return L("Klavye (⌘+ / ⌘−)")
-        }
-    }
-
-    private static func zoomStyleHint(_ s: ZoomStyle) -> String {
-        switch s {
-        case .gesture: return L("Trackpad'deki gibi yalnız içeriği büyütür (Önizleme, Safari, Haritalar, Blender…).")
-        case .wheel: return L("3D programlarda tekerlekle yakınlaştırır; gerekirse bir tuşla birlikte.")
-        case .keys: return L("Uygulamanın kendi ⌘+ / ⌘− komutunu kullanır; tarayıcıda bütün sayfayı büyütür.")
-        }
-    }
-
-    /// Düzenleyici tuş aç/kapa çipi (⌃ ⌥ ⇧ ⌘); orta tuş ve yakınlaştırma ortak kullanır.
-    private func modifierChip(_ name: String, in mods: Binding<[String]>) -> some View {
-        let on = mods.wrappedValue.contains(name)
-        let shape = Capsule()
-        let label: String
-        switch name {
-        case "control": label = "⌃ Control"
-        case "option": label = "⌥ Option"
-        case "shift": label = "⇧ Shift"
-        default: label = "⌘ Command"
-        }
-        return Button {
-            var next = mods.wrappedValue
-            if on { next.removeAll { $0 == name } } else { next.append(name) }
-            mods.wrappedValue = GestureAction.normalizedModifiers(next)
-        } label: {
-            Text(label).font(.system(size: 12.5, weight: on ? .semibold : .regular))
-                .foregroundStyle(on ? MM.accentText : MM.text)
-                .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(on ? MM.accentSoft : MM.card, in: shape)
-                .overlay(shape.strokeBorder(on ? MM.accent : MM.line, lineWidth: on ? 1.5 : 1))
-                .contentShape(shape)
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     // MARK: Kapsam
