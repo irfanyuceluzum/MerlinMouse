@@ -726,3 +726,9 @@
 "Köşe genişliği %lld · yüksekliği %lld" = "Corner width %lld · height %lld";
 "Köşeleri varsayılan boyutlarına döndürür" = "Restores the corners to their default size";
 "Köşelere basınca atanan eylem çalışır; köşe dışındaki tek parmak tıklaması hiç değişmez. Köşe boyutunu tutamaçlarla ayarla. Çok parmaklı hareketler tüm yüzeyde geçerlidir." = "Clicking a corner runs its assigned action; a one-finger click outside the corners never changes. Adjust the corner size with the handles. Multi-finger gestures work across the whole surface.";
+
+/* Genel › Geliştiricinin diğer uygulamaları */
+"Geliştiricinin diğer uygulamaları" = "More apps from the developer";
+"Android tableti ya da telefonu Mac'in trackpad'i, Touch Bar'ı, Deck'i ve klavyesi yapar." = "Turns an Android tablet or phone into a trackpad, Touch Bar, Deck and keyboard for your Mac.";
+"İncele" = "Learn more";
+"%@ uygulamasını incele" = "Learn more about %@";

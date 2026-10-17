@@ -16,6 +16,10 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/MerlinMouse "$APP/Contents/MacOS/MerlinMouse"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# Genel › Geliştiricinin diğer uygulamaları: simgeler.
+if [ -d Resources/DeveloperApps ]; then
+    ditto Resources/DeveloperApps "$APP/Contents/Resources/DeveloperApps"
+fi
 # Dil paketleri (Resources/*.lproj): İngilizce metin tablosu ve Info.plist çevirisi.
 for lproj in Resources/*.lproj; do
     if [ -d "$lproj" ]; then

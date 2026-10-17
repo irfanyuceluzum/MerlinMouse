@@ -165,6 +165,12 @@ struct GeneralPage: View {
                         }
                     }
                 }
+                card(L("Geliştiricinin diğer uygulamaları")) {
+                    ForEach(Array(DeveloperApps.all.enumerated()), id: \.element.id) { index, app in
+                        if index > 0 { MMDivider() }
+                        developerAppRow(app)
+                    }
+                }
                 card(L("Uygulama")) {
                     row(L("Kayıt dosyası"), "~/Library/Logs/MerlinMouse.log") {
                         MMSecondaryButton(L("Kayıt dosyasını Finder'da göster")) {
@@ -295,6 +301,31 @@ struct GeneralPage: View {
             control()
         }
         .padding(.horizontal, 20).padding(.vertical, 14)
+    }
+
+    /// Diğer uygulama satırı: paketteki simge (yoksa genel simge), ad, kısa tanım ve "İncele" bağlantısı.
+    private func developerAppRow(_ app: DeveloperApp) -> some View {
+        HStack(spacing: 14) {
+            Group {
+                if let url = Bundle.main.url(forResource: app.iconName, withExtension: "png", subdirectory: "DeveloperApps"),
+                   let image = NSImage(contentsOf: url) {
+                    Image(nsImage: image).resizable().interpolation(.high)
+                } else {
+                    Image(systemName: "app.dashed").resizable().scaledToFit().foregroundStyle(MM.text2).padding(6)
+                }
+            }
+            .frame(width: 44, height: 44)
+            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: app.name).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(MM.text)
+                Text(app.summary).font(.system(size: 12)).foregroundStyle(MM.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 12)
+            MMSecondaryButton(L("İncele")) { NSWorkspace.shared.open(app.url) }
+                .accessibilityLabel(LF("%@ uygulamasını incele", app.name))
+        }
+        .padding(.horizontal, 20).padding(.vertical, 12)
     }
 
     private func statusChip(_ text: String, ok: Bool) -> some View {
