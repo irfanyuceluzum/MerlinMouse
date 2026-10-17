@@ -22,6 +22,39 @@ struct ClickSnapshot {
     var now: Double
 }
 
+/// Kaydırma düşürme için canlı bayraklar: geri çağrı iş parçacığı çimdikleme / kenar oturumu başladığı ya da
+/// bittiği anda yazar, olay yakalayıcı okur (`InputState` bayrakları ana kuyruğa geç ulaşır; aradaki kaydırma
+/// sızmasın). `TouchMonitor.lock`'tan ayrı, yalnız iki Bool'u koruyan kısa bir `os_unfair_lock` kullanır.
+final class LiveScrollBlock {
+    private let mutex: UnsafeMutablePointer<os_unfair_lock>
+    private var pinch = false
+    private var edge = false
+
+    init() {
+        mutex = .allocate(capacity: 1)
+        mutex.initialize(to: os_unfair_lock())
+    }
+
+    deinit {
+        mutex.deinitialize(count: 1)
+        mutex.deallocate()
+    }
+
+    /// Olay yakalayıcıda: yalnız kısa kilitli okuma.
+    func read() -> (pinch: Bool, edge: Bool) {
+        os_unfair_lock_lock(mutex); defer { os_unfair_lock_unlock(mutex) }
+        return (pinch, edge)
+    }
+
+    func setPinch(_ value: Bool) {
+        os_unfair_lock_lock(mutex); pinch = value; os_unfair_lock_unlock(mutex)
+    }
+
+    func setEdge(_ value: Bool) {
+        os_unfair_lock_lock(mutex); edge = value; os_unfair_lock_unlock(mutex)
+    }
+}
+
 /// Magic Mouse (ve bağlıysa trackpad) yüzeyindeki parmakları okur ve hareket tanıyıcıları besleyen ince adaptördür.
 /// C geri çağrısı kendi iş parçacığında gelir; paylaşılan durum kilitle korunur.
 final class TouchMonitor {
@@ -38,6 +71,9 @@ final class TouchMonitor {
     var onEdge: (([EdgeSlideEvent]) -> Void)?
 
     private let lock = NSLock()
+    /// Çimdikleme / kenar oturumunun canlı durumu (`ScrollModule` okur). Yalnız geçişlerde yazılır: çimdiklemede
+    /// `.began` (ataması varken) açar, `.ended` kapatır; kenarda etkinlik değişimi. Kapanış yolları sıfırlar.
+    let liveScroll = LiveScrollBlock()
     private let flushQueue = DispatchQueue(label: "dev.merlinmouse.gesture-flush")
     private var current: [Touch] = []
     private var lastUIUpdate: Double = 0
@@ -108,7 +144,15 @@ final class TouchMonitor {
         lock.lock()
         edge.noteClick()
         edgeEngaged = false
+        liveScroll.setEdge(false)
         lock.unlock()
+    }
+
+    /// Canlı çimdikleme bayrağını kapatır (`GestureDispatcher.endPinchSession`: bitiş, iptal, duraklatma,
+    /// kapatma, kuru deneme, izin kaybı, akışın yeniden başlaması). Oturum kabul edildiyse ana kuyrukta
+    /// `InputState.pinchActive` devralır; bayrak ancak yeni bir `.began` ile yeniden açılır.
+    func cancelLivePinch() {
+        liveScroll.setPinch(false)
     }
 
     /// Ana kuyrukta: `edgeActive`'i tanıyıcının o anki durumundan yazar (sıra dışı eski değer takılı kalmaz),
@@ -137,6 +181,9 @@ final class TouchMonitor {
     /// taranır (hot-plug, uyanma, elle tarama); fare bulunamadığı için yapılan periyodik taramada trackpad'e dokunulmaz.
     @discardableResult
     func start(rescanTrackpads: Bool = true) -> Int {
+        // Akış yeniden başlıyor: kalkış karesi gelmeyebilir, canlı bayraklar takılı kalmasın.
+        liveScroll.setPinch(false)
+        liveScroll.setEdge(false)
         let mice = Int(OTMultitouchStart { pointer, count, timestamp in
             guard let pointer else { return }
             TouchMonitor.shared.handle(UnsafeBufferPointer(start: pointer, count: Int(count)), timestamp)
@@ -227,6 +274,9 @@ final class TouchMonitor {
         let engaged = edge.isActive
         let edgeChanged = engaged != edgeEngaged
         edgeEngaged = engaged
+        // Tıklama iki oturumu da iptal eder: canlı bayraklar kapanır.
+        liveScroll.setPinch(false)
+        liveScroll.setEdge(engaged && !edge.enabledSides.isEmpty)
         lock.unlock()
         if !pinchEvents.isEmpty { DispatchQueue.main.async { self.onPinch?(pinchEvents) } }
         deliverEdge(edgeEvents, stateChanged: edgeChanged)
@@ -278,6 +328,12 @@ final class TouchMonitor {
         var pinchEvents = pinch.process(frame)
         // Ataması yoksa yalnız bitiş iletilir (yakınlaştırma durumu takılı kalmasın).
         if !wantsPinch { pinchEvents = pinchEvents.filter { $0 == .ended } }
+        // Canlı bayrak geçiş anında yazılır (ataması yoksa `.began` süzüldüğü için açılmaz).
+        if pinchEvents.contains(.ended) {
+            liveScroll.setPinch(false)
+        } else if pinchEvents.contains(.began) {
+            liveScroll.setPinch(true)
+        }
         // Çimdikleme başladıysa açık dokunma / kaydırma oturumu hareket üretmez.
         if pinchEvents.contains(.began) { recognizer.noteClick() }
         let edgeEvents = edge.process(frame)
@@ -289,6 +345,8 @@ final class TouchMonitor {
         let engaged = edge.isActive
         let edgeChanged = engaged != edgeEngaged
         edgeEngaged = engaged
+        // Yalnız etkin kenar varken anlamlı; değişim anında yazılır.
+        if edgeChanged { liveScroll.setEdge(engaged && !edge.enabledSides.isEmpty) }
         let deadline = recognizer.pendingDeadline
         let sendUI = timestamp - lastUIUpdate > 0.05 || active.isEmpty
         if sendUI { lastUIUpdate = timestamp }

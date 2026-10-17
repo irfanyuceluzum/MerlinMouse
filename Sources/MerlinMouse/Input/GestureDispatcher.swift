@@ -76,6 +76,8 @@ enum GestureDispatcher {
             magnifyOpen = false
             ActionExecutor.magnify(phase: ActionExecutor.Magnify.phaseEnded, amount: 0)
         }
+        // Canlı bayrak da kapanır; `.began` kabul edilirse aynı ana kuyruk adımında `pinchActive` devralır.
+        TouchMonitor.shared.cancelLivePinch()
         InputState.shared.pinchActive = false
     }
 

@@ -3,6 +3,7 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
 #include <dlfcn.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -55,6 +56,12 @@ static OTDeviceFrameHandler gPadHandler;
 static bool gPadsOwned;           // gPads servisten oluşturuldu (bırakmak bizim işimiz)
 static CFMutableArrayRef gPadList; // yedek yolda trackpad'lerin listesi
 
+// Kare geri çağrıları MT'nin arka iş parçacığında gelir; başlatma/durdurma ana iş parçacığındadır.
+// gMice/gMiceCount/gHandler ve gPads/gPadCount/gPadHandler bu kilitle korunur. Kilit yalnız kısa okuma/yazma
+// için tutulur: işleyici ve MT çağrıları (unregister/stop/release) kilit dışında yapılır; böylece uçuştaki bir
+// geri çağrı kilidi beklerken durdurma onu beklerse kilitlenme olmaz.
+static pthread_mutex_t gStreamLock = PTHREAD_MUTEX_INITIALIZER;
+
 static bool load(void) {
     static void *handle;
     if (handle) return true;
@@ -89,9 +96,13 @@ static int convert(const MTFinger *fingers, int count, OTTouch *touches) {
 static int frameCallback(MTDeviceRef device, MTFinger *fingers, int count, double timestamp, int frame) {
     (void)device;
     (void)frame;
+    pthread_mutex_lock(&gStreamLock);
+    OTFrameHandler handler = gHandler;
+    pthread_mutex_unlock(&gStreamLock);
+    if (!handler) return 0;
     OTTouch touches[16];
     int n = convert(fingers, count, touches);
-    if (gHandler) gHandler(touches, n, timestamp);
+    handler(touches, n, timestamp);
     return 0;
 }
 
@@ -99,14 +110,16 @@ static int frameCallback(MTDeviceRef device, MTFinger *fingers, int count, doubl
 static int padFrameCallback(MTDeviceRef device, MTFinger *fingers, int count, double timestamp, int frame) {
     (void)frame;
     int slot = -1;
+    pthread_mutex_lock(&gStreamLock);
     for (int i = 0; i < gPadCount; i++) {
         if (gPads[i] == device) { slot = i; break; }
     }
-    if (slot < 0) return 0;
+    OTDeviceFrameHandler handler = slot >= 0 ? gPadHandler : NULL;
+    pthread_mutex_unlock(&gStreamLock);
+    if (!handler) return 0;
     OTTouch touches[16];
     int n = convert(fingers, count, touches);
-    OTDeviceFrameHandler handler = gPadHandler;
-    if (handler) handler(slot, touches, n, timestamp);
+    handler(slot, touches, n, timestamp);
     return 0;
 }
 
@@ -124,13 +137,21 @@ static bool isMouse(MTDeviceRef device, int *familyOut, bool *builtInOut) {
 }
 
 // Yalnız fare akışlarını durdurur (trackpad akışına dokunmaz).
+// Kilit altında işleyici sıfırlanır ve liste yerel kopyaya alınır; MT çağrıları kilit dışında yapılır.
 static void stopMice(void) {
-    for (int i = 0; i < gMiceCount; i++) {
-        if (pUnregister) pUnregister(gMice[i], frameCallback);
-        if (pStop) pStop(gMice[i]);
-        if (gOwned && pRelease) pRelease(gMice[i]);
-    }
+    MTDeviceRef mice[MAX_MICE];
+    pthread_mutex_lock(&gStreamLock);
+    gHandler = NULL;
+    int n = gMiceCount;
+    for (int i = 0; i < n; i++) mice[i] = gMice[i];
     gMiceCount = 0;
+    pthread_mutex_unlock(&gStreamLock);
+    bool owned = gOwned;
+    for (int i = 0; i < n; i++) {
+        if (pUnregister) pUnregister(mice[i], frameCallback);
+        if (pStop) pStop(mice[i]);
+        if (owned && pRelease) pRelease(mice[i]);
+    }
     gOwned = false;
     if (gList) {
         CFRelease(gList);
@@ -138,14 +159,21 @@ static void stopMice(void) {
     }
 }
 
-// Yalnız trackpad akışlarını durdurur.
+// Yalnız trackpad akışlarını durdurur (fare ile aynı desen).
 static void stopPads(void) {
-    for (int i = 0; i < gPadCount; i++) {
-        if (pUnregister) pUnregister(gPads[i], padFrameCallback);
-        if (pStop) pStop(gPads[i]);
-        if (gPadsOwned && pRelease) pRelease(gPads[i]);
-    }
+    MTDeviceRef pads[MAX_PADS];
+    pthread_mutex_lock(&gStreamLock);
+    gPadHandler = NULL;
+    int n = gPadCount;
+    for (int i = 0; i < n; i++) pads[i] = gPads[i];
     gPadCount = 0;
+    pthread_mutex_unlock(&gStreamLock);
+    bool owned = gPadsOwned;
+    for (int i = 0; i < n; i++) {
+        if (pUnregister) pUnregister(pads[i], padFrameCallback);
+        if (pStop) pStop(pads[i]);
+        if (owned && pRelease) pRelease(pads[i]);
+    }
     gPadsOwned = false;
     if (gPadList) {
         CFRelease(gPadList);
@@ -165,8 +193,11 @@ void OTMultitouchStopTrackpads(void) {
 // Açıklamaya ekler ve aygıtı tanım listesine yazar (`started`: fare olarak akışı başlatıldı mı).
 static void addDescription(int family, bool builtIn, bool mouse, bool started) {
     size_t len = strlen(gDesc);
-    snprintf(gDesc + len, sizeof gDesc - len, "%saile %d%s%s", len ? ", " : "", family,
-             builtIn ? " (dahili)" : "", mouse ? " (fare)" : "");
+    // snprintf sınırı zaten aşmaz; koşul yalnız okunurluk için (dolu tamponda ekleme yok).
+    if (len < sizeof gDesc) {
+        snprintf(gDesc + len, sizeof gDesc - len, "%saile %d%s%s", len ? ", " : "", family,
+                 builtIn ? " (dahili)" : "", mouse ? " (fare)" : "");
+    }
     if (gDeviceCount < MAX_DEVICES) {
         gDevices[gDeviceCount].family = family;
         gDevices[gDeviceCount].builtIn = builtIn ? 1 : 0;
@@ -178,12 +209,16 @@ static void addDescription(int family, bool builtIn, bool mouse, bool started) {
 static void startMouse(MTDeviceRef device) {
     pRegister(device, frameCallback);
     pStart(device, 0);
+    pthread_mutex_lock(&gStreamLock);
     gMice[gMiceCount++] = device;
+    pthread_mutex_unlock(&gStreamLock);
 }
 
 static void startPad(MTDeviceRef device) {
-    // Yuva, geri çağrı gelmeden önce yazılır.
+    // Yuva, geri çağrı gelmeden önce (kilit altında) yazılır.
+    pthread_mutex_lock(&gStreamLock);
     gPads[gPadCount++] = device;
+    pthread_mutex_unlock(&gStreamLock);
     pRegister(device, padFrameCallback);
     pStart(device, 0);
 }
@@ -287,7 +322,9 @@ int OTMultitouchStart(OTFrameHandler handler) {
     }
     // Yalnız fareler yeniden başlar; trackpad akışı ayrı yönetilir.
     stopMice();
+    pthread_mutex_lock(&gStreamLock);
     gHandler = handler;
+    pthread_mutex_unlock(&gStreamLock);
     gDesc[0] = 0;
     gDeviceCount = 0;
     if (pCreateFromService) startFromServices();
@@ -298,15 +335,20 @@ int OTMultitouchStart(OTFrameHandler handler) {
 int OTMultitouchStartTrackpads(OTDeviceFrameHandler handler) {
     if (!load()) return -1;
     stopPads();
+    pthread_mutex_lock(&gStreamLock);
     gPadHandler = handler;
+    pthread_mutex_unlock(&gStreamLock);
     if (!handler) return 0;
     if (pCreateFromService) padsFromServices();
     else if (pCreateList) padsFromList();
-    return gPadCount;
+    return OTMultitouchTrackpadCount();
 }
 
 int OTMultitouchTrackpadCount(void) {
-    return gPadCount;
+    pthread_mutex_lock(&gStreamLock);
+    int n = gPadCount;
+    pthread_mutex_unlock(&gStreamLock);
+    return n;
 }
 
 // --- Aygıt ekleme/çıkarma izleme ---

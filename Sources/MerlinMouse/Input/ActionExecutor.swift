@@ -201,12 +201,23 @@ enum ActionExecutor {
         }
     }
 
+    /// Çalışan kestirmeler (ada göre); aynı adlı kestirme bitmeden yeniden başlatılmaz.
+    private static let shortcutGate = InFlightGate<String>()
+
     private static func runShortcut(_ name: String) {
         guard !name.isEmpty else {
             Log.write("Kısayol çalıştır: ad boş")
             return
         }
         DispatchQueue.global(qos: .utility).async {
+            switch shortcutGate.admit(name) {
+            case .begun:
+                break
+            case .busy(let firstRejection):
+                if firstRejection { Log.write("Kestirme zaten çalışıyor: \(name)") }
+                return
+            }
+            defer { shortcutGate.end(name) }
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/shortcuts")
             process.arguments = ["run", name]

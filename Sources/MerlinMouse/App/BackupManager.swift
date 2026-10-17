@@ -46,7 +46,11 @@ enum BackupManager {
         let s = Settings.shared
         let settings = BackupSettings(zoneLayout: s.zoneLayout, appearance: s.appearance, language: s.language,
                                       flipY: s.flipY, blockScrollWhileDragging: s.blockScrollWhileDragging,
-                                      calm3DScroll: s.calm3DScroll, batteryAlertsEnabled: s.batteryAlertsEnabled)
+                                      calm3DScroll: s.calm3DScroll, batteryAlertsEnabled: s.batteryAlertsEnabled,
+                                      pinchInvert: s.pinchInvert, pinchStep: s.pinchStep, edgeWidth: s.edgeWidth,
+                                      edgeStep: s.edgeStep, edgeFineSteps: s.edgeFineSteps, edgeInvert: s.edgeInvert,
+                                      edgeBounds: s.edgeBounds, trackpadCorners: s.trackpadCorners,
+                                      editingDevice: s.editingDevice.rawValue)
         return MerlinBackup(bindings: BindingStore.shared.set, settings: settings)
     }
 
@@ -84,14 +88,24 @@ enum BackupManager {
         try snapshot().encode().write(to: auto, options: .atomic)
 
         BindingStore.shared.replaceAll(backup.bindings)
-        let st = backup.settings, s = Settings.shared
-        if let v = st.zoneLayout { s.zoneLayout = v.clamped() }
+        // Değerler sıkıştırılmış gelir; yedekte olmayan alan atlanır (mevcut ayar değişmez).
+        let st = backup.settings.restorable(), s = Settings.shared
+        if let v = st.zoneLayout { s.zoneLayout = v }
         if let v = st.appearance { s.appearance = v }
         if let v = st.language { s.language = v }
         if let v = st.flipY { s.flipY = v }
         if let v = st.blockScrollWhileDragging { s.blockScrollWhileDragging = v }
         if let v = st.calm3DScroll { s.calm3DScroll = v }
         if let v = st.batteryAlertsEnabled { s.batteryAlertsEnabled = v }
+        if let v = st.pinchInvert { s.pinchInvert = v }
+        if let v = st.pinchStep { s.pinchStep = v }
+        if let v = st.edgeWidth { s.edgeWidth = v }
+        if let v = st.edgeStep { s.edgeStep = v }
+        if let v = st.edgeFineSteps { s.edgeFineSteps = v }
+        if let v = st.edgeInvert { s.edgeInvert = v }
+        if let v = st.edgeBounds { s.edgeBounds = v }
+        if let v = st.trackpadCorners { s.trackpadCorners = v }
+        if let v = st.editingDevice.flatMap(InputDeviceKind.init(rawValue:)) { s.editingDevice = v }
         Log.write("Yedek geri yüklendi: \(url.lastPathComponent)")
     }
 }
