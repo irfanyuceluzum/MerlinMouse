@@ -13,7 +13,7 @@ public struct TrackpadGestureSection: Equatable {
 
 /// macOS'un trackpad hareketleri ve Merlin Mouse açısından durumları (`ConflictEnvironment`'ın trackpad alanları).
 /// Rozette sayılan (`isConfigurable`) satırlar, Merlin Mouse'un trackpad atamalarıyla çakışabilen ve macOS'ta
-/// kapatılabilen üç parmak hareketleridir; diğerleri yalnız bilgi verir.
+/// kapatılabilen hareketlerdir (köşeden ikincil tıklama ve üç parmak hareketleri); diğerleri yalnız bilgi verir.
 public enum TrackpadGestureCatalog {
     /// macOS'un trackpad'de kullanmadığı, Merlin Mouse'un atayabildiği serbest hareketler.
     public static var freeGestures: [String] { [
@@ -39,6 +39,8 @@ public enum TrackpadGestureCatalog {
             TrackpadGestureSection(title: MerlinText.t("Dokunma ve tıklama"), rows: [
                 info(MerlinText.t("Tek parmakla dokunma"), MerlinText.t("Dokunarak tıklama"), env.trackpadTapToClick),
                 always(MerlinText.t("İki parmakla tıklama / dokunma"), MerlinText.t("İkincil tıklama")),
+                conflicting(MerlinText.t("Köşeden ikincil tıklama"), MerlinText.t("İkincil tıklama"),
+                            env.trackpadCornerSecondaryClick != 0),
                 conflicting(MerlinText.t("Üç parmakla dokunma"), MerlinText.t("Bak ve veri algılayıcıları"),
                             env.threeFingerTapLookup),
             ]),

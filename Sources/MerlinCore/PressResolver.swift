@@ -37,15 +37,20 @@ public enum PressResolver {
         return out
     }
 
-    /// Trackpad basışı: bölge ve ön/arka ayrımı yok, tüm parmaklar sayılır. Fn hesabı fareyle aynıdır;
-    /// tek parmak normal tıklamadır (aday yok), 2+ parmak en çok 4 olarak aday olur.
-    public static func trackpadCandidates(fingerCount n: Int, fnDown: Bool) -> [Trigger] {
+    /// Trackpad basışı: ön/arka ayrımı yok, tüm parmaklar sayılır. Fn hesabı fareyle aynıdır; 2+ parmak en çok 4
+    /// olarak aday olur. Tek parmak yalnız bir köşedeyse (`corners`) köşeye basma adayıdır; köşe dışındaki tek parmak
+    /// normal tıklamadır ve hiçbir koşulda aday üretmez. `fingers` y: 0 alt (kullanıcıya yakın) → 1 üst.
+    public static func trackpadCandidates(fingers: [TouchPoint], fnDown: Bool,
+                                          corners: TrackpadCornerLayout) -> [Trigger] {
         var out: [Trigger] = []
         if fnDown {
             out.append(Trigger(kind: .press, fingers: 0, modifier: .fn))
         }
+        let n = fingers.count
         if n >= 2 {
             out.append(Trigger(kind: .press, fingers: min(n, 4)))
+        } else if n == 1, let corner = corners.classify(x: fingers[0].x, y: fingers[0].y) {
+            out.append(Trigger(kind: .press, fingers: 1, zone: corner))
         }
         return out
     }

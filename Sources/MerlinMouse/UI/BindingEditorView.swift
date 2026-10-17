@@ -713,7 +713,8 @@ struct BindingEditorView: View {
         let zones = TriggerOptions.zoneChoices(kind: trigger.kind, fingers: trigger.fingers, modifier: trigger.modifier,
                                                device: device)
         if !zones.isEmpty {
-            Picker(trigger.kind == .edgeSlide ? L("Kenar") : L("Bölge"), selection: field(\.zone)) {
+            Picker(trigger.kind == .edgeSlide ? L("Kenar") : (device == .trackpad ? L("Köşe") : L("Bölge")),
+                   selection: field(\.zone)) {
                 ForEach(zones, id: \.self) { Text(Self.zoneName($0)).tag($0) }
             }
             .pickerStyle(.segmented)
@@ -752,6 +753,7 @@ struct BindingEditorView: View {
         case .rear: return L("Arka (logo)")
         case .leftEdge: return L("Sol kenar")
         case .rightEdge: return L("Sağ kenar")
+        case .cornerTopLeft, .cornerTopRight, .cornerBottomLeft, .cornerBottomRight: return z.displayName
         }
     }
 

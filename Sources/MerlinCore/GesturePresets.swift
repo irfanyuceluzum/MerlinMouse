@@ -36,6 +36,10 @@ public enum GesturePresets {
         GesturePreset(title: MerlinText.t("Üç parmakla çift dokun"), trigger: Trigger(kind: .doubleTap, fingers: 3)),
         GesturePreset(title: MerlinText.t("Dört parmakla dokun"), trigger: Trigger(kind: .tap, fingers: 4)),
         GesturePreset(title: MerlinText.t("Dört parmakla bas"), trigger: Trigger(kind: .press, fingers: 4)),
+        GesturePreset(title: MerlinText.t("Sol üst köşeye bas"), trigger: Trigger(kind: .press, fingers: 1, zone: .cornerTopLeft)),
+        GesturePreset(title: MerlinText.t("Sağ üst köşeye bas"), trigger: Trigger(kind: .press, fingers: 1, zone: .cornerTopRight)),
+        GesturePreset(title: MerlinText.t("Sol alt köşeye bas"), trigger: Trigger(kind: .press, fingers: 1, zone: .cornerBottomLeft)),
+        GesturePreset(title: MerlinText.t("Sağ alt köşeye bas"), trigger: Trigger(kind: .press, fingers: 1, zone: .cornerBottomRight)),
     ] }
 
     /// Aygıtın hazır hareketleri (Magic Mouse için `all`).

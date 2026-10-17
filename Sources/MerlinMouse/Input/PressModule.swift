@@ -75,7 +75,9 @@ final class PressModule: InputModule {
             let found: GestureBinding?
             switch device {
             case .trackpad:
-                found = PressResolver.trackpadCandidates(fingerCount: snap.trackpad.touches, fnDown: fnDown)
+                // Tek parmak yalnız köşedeyse aday olur; köşe dışındaki tek parmak tıklaması hiç değişmez.
+                found = PressResolver.trackpadCandidates(fingers: snap.trackpadPoints, fnDown: fnDown,
+                                                         corners: Settings.shared.trackpadCorners)
                     .lazy.compactMap { index.match($0, bundleID: bundleID, device: .trackpad) }.first
             case .magicMouse:
                 found = matchMouse(fnDown: fnDown, index: index, bundleID: bundleID)

@@ -45,11 +45,12 @@ final class TrackpadInterfaceTests: XCTestCase {
     func testTrackpadPresets() {
         let p = GesturePresets.presets(for: .trackpad)
         XCTAssertEqual(p.map(\.title), ["Üç parmakla dokun", "Üç parmakla bas", "Üç parmakla çift dokun",
-                                        "Dört parmakla dokun", "Dört parmakla bas"])
+                                        "Dört parmakla dokun", "Dört parmakla bas",
+                                        "Sol üst köşeye bas", "Sağ üst köşeye bas", "Sol alt köşeye bas", "Sağ alt köşeye bas"])
         XCTAssertEqual(p.map(\.trigger), [
             Trigger(kind: .tap, fingers: 3), Trigger(kind: .press, fingers: 3), Trigger(kind: .doubleTap, fingers: 3),
             Trigger(kind: .tap, fingers: 4), Trigger(kind: .press, fingers: 4),
-        ].map(\.normalized))
+        ].map(\.normalized) + Zone.corners.map { Trigger(kind: .press, fingers: 1, zone: $0) })
         for preset in p {
             // Trackpad seçenekleriyle geçerli ve başlık tetiğin kendi başlığı.
             XCTAssertEqual(TriggerOptions.sanitize(preset.trigger, device: .trackpad), preset.trigger, preset.title)

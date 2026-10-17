@@ -9,14 +9,26 @@ public enum GestureKind: String, Codable, Hashable, CaseIterable {
     case edgeSlide
 }
 
-/// Tek parmakla basılan bölge. `leftEdge` / `rightEdge` yalnız kenar kaydırmanın şerididir;
-/// `Zone.classify` bunları hiç döndürmez.
+/// Tek parmakla basılan bölge. `leftEdge` / `rightEdge` yalnız kenar kaydırmanın şerididir; `corner…` yalnız
+/// trackpad'de tek parmakla basmanın köşeleridir. Fare için `Zone.classify` bunları hiç döndürmez.
 public enum Zone: String, Codable, Hashable, CaseIterable {
     case any, left, center, right, rear
     case leftEdge, rightEdge
+    case cornerTopLeft, cornerTopRight, cornerBottomLeft, cornerBottomRight
 
     /// Kenar kaydırma şeridi mi?
     public var isEdge: Bool { self == .leftEdge || self == .rightEdge }
+
+    /// Trackpad köşesi mi?
+    public var isCorner: Bool {
+        switch self {
+        case .cornerTopLeft, .cornerTopRight, .cornerBottomLeft, .cornerBottomRight: return true
+        default: return false
+        }
+    }
+
+    /// Trackpad köşeleri, seçicideki sırayla.
+    public static let corners: [Zone] = [.cornerTopLeft, .cornerTopRight, .cornerBottomLeft, .cornerBottomRight]
 
     /// Arayüzde gösterilen ad.
     public var displayName: String {
@@ -28,6 +40,10 @@ public enum Zone: String, Codable, Hashable, CaseIterable {
         case .rear: return MerlinText.t("Arka (logo)")
         case .leftEdge: return MerlinText.t("Sol kenar")
         case .rightEdge: return MerlinText.t("Sağ kenar")
+        case .cornerTopLeft: return MerlinText.t("Sol üst köşe")
+        case .cornerTopRight: return MerlinText.t("Sağ üst köşe")
+        case .cornerBottomLeft: return MerlinText.t("Sol alt köşe")
+        case .cornerBottomRight: return MerlinText.t("Sağ alt köşe")
         }
     }
 }
@@ -79,8 +95,9 @@ public struct Trigger: Codable, Hashable {
             t.modifier = .none
             return t
         }
-        // Kenar şeritleri yalnız kenar kaydırmada anlamlıdır.
+        // Kenar şeritleri yalnız kenar kaydırmada, köşeler yalnız (tek parmak, tuşsuz) basmada anlamlıdır.
         if t.zone.isEdge { t.zone = .any }
+        if t.zone.isCorner, t.kind != .press && t.kind != .hold { t.zone = .any }
         if t.kind != .swipe { t.direction = .up }
         if t.fingers != 1 { t.zone = .any }
         if t.kind != .press && t.kind != .hold { t.modifier = .none }
@@ -114,6 +131,10 @@ public struct Trigger: Codable, Hashable {
             case .center: phrase = MerlinText.t("Orta bölgeye")
             case .right: phrase = MerlinText.t("Sağ bölgeye")
             case .rear: phrase = MerlinText.t("Arkaya")
+            case .cornerTopLeft: phrase = MerlinText.t("Sol üst köşeye")
+            case .cornerTopRight: phrase = MerlinText.t("Sağ üst köşeye")
+            case .cornerBottomLeft: phrase = MerlinText.t("Sol alt köşeye")
+            case .cornerBottomRight: phrase = MerlinText.t("Sağ alt köşeye")
             }
         } else {
             switch t.fingers {

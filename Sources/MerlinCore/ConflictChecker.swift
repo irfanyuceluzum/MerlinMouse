@@ -62,6 +62,18 @@ public struct ConflictEnvironment: Equatable {
     public var fiveFingerPinch: Bool
     /// `TrackpadThreeFingerDrag`: üç parmakla sürükleme (Erişilebilirlik).
     public var threeFingerDrag: Bool
+    /// `TrackpadCornerSecondaryClick`: köşeden ikincil tıklama. 0 kapalı, 1 sol alt köşe, 2 sağ alt köşe.
+    /// (`TrackpadRightClick` iki parmakla ikincil tıklamadır; köşeyle ilgisi yoktur.)
+    public var trackpadCornerSecondaryClick: Int
+
+    /// Köşeden ikincil tıklamanın köşesi; kapalı ya da bilinmeyen değerde nil.
+    public var secondaryClickCorner: Zone? {
+        switch trackpadCornerSecondaryClick {
+        case 1: return .cornerBottomLeft
+        case 2: return .cornerBottomRight
+        default: return nil
+        }
+    }
 
     public init(mouseButtonMode: String? = nil, oneFingerDoubleTap: Int = 0,
                 twoFingerDoubleTap: Int = 0, twoFingerHorizSwipe: Int = 0,
@@ -71,7 +83,8 @@ public struct ConflictEnvironment: Equatable {
                 trackpadPinch: Bool = false, trackpadSmartZoom: Bool = false, trackpadRotate: Bool = false,
                 threeFingerHorizSwipe: Int = 0, threeFingerVertSwipe: Int = 0,
                 notificationCenterSwipe: Bool = false, fiveFingerPinch: Bool = false,
-                threeFingerDrag: Bool = false) {
+                threeFingerDrag: Bool = false, trackpadCornerSecondaryClick: Int = 0) {
+        self.trackpadCornerSecondaryClick = trackpadCornerSecondaryClick
         self.oneFingerHorizSwipePages = oneFingerHorizSwipePages
         self.controlScrollZoom = controlScrollZoom
         self.mouseButtonMode = mouseButtonMode
@@ -99,19 +112,35 @@ public enum ConflictChecker {
         let t = binding.trigger.normalized
         var out: [Conflict] = []
 
-        // Ayrılmış: kullanıcı davranışını bozacak tetikler.
-        if (t.kind == .press || t.kind == .hold), t.modifier == .none, t.fingers == 1,
+        // Ayrılmış: kullanıcı davranışını bozacak tetikler. Tek parmak kuralları aygıta göre ayrıdır.
+        let pad = binding.device == .trackpad
+        if !pad, (t.kind == .press || t.kind == .hold), t.modifier == .none, t.fingers == 1,
            t.zone == .any || t.zone == .left {
             out.append(Conflict(level: .reserved, title: MerlinText.t("Normal sol tıklama"),
                                 detail: MerlinText.t("Tek parmakla sol bölgeye basmak normal sol tıklamadır; dönüştürülemez.")))
+        }
+        // Trackpad: köşe dışındaki tek parmak tıklaması hiçbir koşulda dönüştürülmez.
+        if pad, (t.kind == .press || t.kind == .hold), t.modifier == .none, t.fingers == 1, !t.zone.isCorner {
+            out.append(Conflict(level: .reserved, title: MerlinText.t("Normal tıklama"),
+                                detail: MerlinText.t("Trackpad'de köşe dışındaki tek parmak tıklaması normal tıklamadır; dönüştürülemez.")))
         }
         if t.kind == .swipe, t.fingers < 3 {
             out.append(Conflict(level: .reserved, title: MerlinText.t("Kaydırma ile karışır"),
                                 detail: MerlinText.t("Bir veya iki parmakla kaydırma normal kaydırmayla karışır; en az üç parmak gerekir.")))
         }
-        if t.kind == .tap, t.fingers == 1, t.zone != .rear {
+        if !pad, t.kind == .tap, t.fingers == 1, t.zone != .rear {
             out.append(Conflict(level: .reserved, title: MerlinText.t("Fareyi tutarken kazara tetiklenir"),
                                 detail: MerlinText.t("Tek parmakla dokunma, fareyi tutarken istemeden tetiklenir.")))
+        }
+        // Trackpad'de tek parmakla dokunma macOS'un dokunarak tıklamasıyla ayırt edilemez.
+        if pad, t.kind == .tap || t.kind == .doubleTap, t.fingers == 1 {
+            out.append(Conflict(level: .reserved, title: MerlinText.t("Dokunarak tıklamayla karışır"),
+                                detail: MerlinText.t("Trackpad'de tek parmakla dokunma, macOS'un dokunarak tıklamasından ayırt edilemez; atanamaz.")))
+        }
+        // Köşeler yalnız trackpad'dedir.
+        if !pad, t.zone.isCorner {
+            out.append(Conflict(level: .unsupported, title: MerlinText.t("Köşeler yalnız trackpad'de"),
+                                detail: MerlinText.t("Köşeye basma yalnız trackpad atamalarında kullanılır.")))
         }
         if t.fingers == 0, t.modifier == .none {
             out.append(Conflict(level: .reserved, title: MerlinText.t("Parmak sayısı gerekli"),
@@ -218,9 +247,21 @@ public enum ConflictChecker {
         return out
     }
 
-    /// Trackpad'e özgü macOS Trackpad ayarı çakışmaları (üç parmak hareketleri).
+    /// Trackpad'e özgü macOS Trackpad ayarı çakışmaları (köşeye basma ve üç parmak hareketleri).
     private static func trackpadSystemConflicts(_ t: Trigger, env: ConflictEnvironment) -> [Conflict] {
         var out: [Conflict] = []
+        if t.kind == .press, t.fingers == 1, t.zone.isCorner {
+            if t.zone == env.secondaryClickCorner {
+                out.append(Conflict(level: .macOS, title: MerlinText.t("macOS köşeden ikincil tıklama"),
+                                    detail: MerlinText.t("Bu köşeye tıklamak macOS'ta ikincil tıklama olarak ayarlı.")))
+            }
+            // Dokunarak tıklamada macOS köşeye hafif dokunuşu da tıklama olarak üretir; ayırt edilemez.
+            if env.trackpadTapToClick {
+                out.append(Conflict(level: .caution, title: MerlinText.t("Dokunarak tıklama açık"),
+                                    detail: MerlinText.t("Dokunarak tıklama açıkken köşeye hafifçe dokunmak da bu eylemi çalıştırır.")))
+            }
+            return out
+        }
         guard t.fingers == 3, t.modifier == .none else { return out }
         if t.kind == .tap, env.threeFingerTapLookup {
             out.append(Conflict(level: .macOS, title: MerlinText.t("macOS Bak"),

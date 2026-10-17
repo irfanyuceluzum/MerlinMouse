@@ -16,6 +16,8 @@ struct Touch: Identifiable, Equatable {
 struct ClickSnapshot {
     var mouse: (touches: Int, lastFrame: Double)
     var trackpad: (touches: Int, lastFrame: Double)
+    /// Trackpad parmaklarının konumu (köşeye basma için; y 0 alt → 1 üst).
+    var trackpadPoints: [TouchPoint]
     /// Kare zamanlarıyla aynı saat (`systemUptime`).
     var now: Double
 }
@@ -77,11 +79,12 @@ final class TouchMonitor {
         return padCurrent
     }
 
-    /// Basma anında kaynak aygıt için hafif kopya (yalnız sayı ve zaman).
+    /// Basma anında kaynak aygıt için hafif kopya (sayı, zaman ve en çok 16 trackpad noktası).
     func clickSnapshot() -> ClickSnapshot {
         let now = ProcessInfo.processInfo.systemUptime
         lock.lock(); defer { lock.unlock() }
-        return ClickSnapshot(mouse: mouseLast, trackpad: padSelector.lastFrame, now: now)
+        return ClickSnapshot(mouse: mouseLast, trackpad: padSelector.lastFrame,
+                             trackpadPoints: padCurrent.map { TouchPoint(id: $0.id, x: $0.x, y: $0.y) }, now: now)
     }
 
     /// Kenar tanıyıcısının canlı durumu: kenar hareketi başladı mı.

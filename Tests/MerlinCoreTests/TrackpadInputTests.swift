@@ -173,17 +173,22 @@ final class TrackpadInputTests: XCTestCase {
         XCTAssertEqual(TriggerOptions.kinds(device: .magicMouse), TriggerOptions.editableKinds)
         for k in GestureKind.allCases {
             let fingers = TriggerOptions.fingerChoices(kind: k, device: .trackpad)
-            XCTAssertEqual(fingers, [.tap, .press, .doubleTap].contains(k) ? [3, 4] : [], "\(k)")
+            let expected: [Int] = k == .press ? [1, 3, 4] : ([.tap, .doubleTap].contains(k) ? [3, 4] : [])
+            XCTAssertEqual(fingers, expected, "\(k)")
             XCTAssertEqual(TriggerOptions.modifierChoices(kind: k, device: .trackpad), [.none], "\(k)")
             for f in 0...4 {
                 for m in PressModifier.allCases {
-                    XCTAssertTrue(TriggerOptions.zoneChoices(kind: k, fingers: f, modifier: m, device: .trackpad).isEmpty)
+                    // Bölge olarak yalnız tek parmak, tuşsuz basmada dört köşe.
+                    let zones = TriggerOptions.zoneChoices(kind: k, fingers: f, modifier: m, device: .trackpad)
+                    XCTAssertEqual(zones, k == .press && f == 1 && m == .none ? Zone.corners : [], "\(k) \(f) \(m)")
                     XCTAssertNil(TriggerOptions.unavailableZoneReason(kind: k, fingers: f, modifier: m, device: .trackpad))
                 }
             }
         }
+        // Köşesiz tek parmak basma yok: köşeye çekilir.
         XCTAssertEqual(TriggerOptions.sanitize(Trigger(kind: .press, fingers: 1, zone: .center, modifier: .fn), device: .trackpad),
-                       press3)
+                       Trigger(kind: .press, fingers: 1, zone: .cornerTopLeft))
+        XCTAssertEqual(TriggerOptions.sanitize(Trigger(kind: .press, fingers: 2), device: .trackpad), press3)
         XCTAssertEqual(TriggerOptions.sanitize(Trigger(kind: .swipe, fingers: 4, direction: .left), device: .trackpad),
                        Trigger(kind: .tap, fingers: 4))
         XCTAssertEqual(TriggerOptions.sanitize(Trigger(kind: .doubleTap, fingers: 2, zone: .rear), device: .trackpad),
@@ -264,13 +269,15 @@ final class TrackpadInputTests: XCTestCase {
         let sections = TrackpadGestureCatalog.sections(env: env)
         XCTAssertEqual(sections.map(\.title), ["Dokunma ve tıklama", "Kaydırma ve yakınlaştırma", "Diğer hareketler",
                                                "Erişilebilirlik"])
-        XCTAssertEqual(sections.map(\.rows.count), [3, 4, 4, 1])
+        XCTAssertEqual(sections.map(\.rows.count), [4, 4, 4, 1])
         let rows = TrackpadGestureCatalog.rows(env: env)
-        XCTAssertEqual(rows.map(\.status), [.off, .always, .off, .always, .off, .off, .off, .off, .off, .off, .off, .off])
+        XCTAssertEqual(rows.map(\.status), [.off, .always, .off, .off, .always, .off, .off, .off, .off, .off, .off, .off, .off])
         XCTAssertEqual(rows.map(\.isConfigurable),
-                       [false, false, true, false, false, false, false, true, true, false, false, true])
-        XCTAssertEqual(rows[2].gesture, "Üç parmakla dokunma")
-        XCTAssertEqual(rows[11].gesture, "Üç parmakla sürükleme")
+                       [false, false, true, true, false, false, false, false, true, true, false, false, true])
+        XCTAssertEqual(rows[2].gesture, "Köşeden ikincil tıklama")
+        XCTAssertEqual(rows[2].task, "İkincil tıklama")
+        XCTAssertEqual(rows[3].gesture, "Üç parmakla dokunma")
+        XCTAssertEqual(rows[12].gesture, "Üç parmakla sürükleme")
         XCTAssertEqual(TrackpadGestureCatalog.conflictCount(env: env), 0)
     }
 
@@ -278,11 +285,12 @@ final class TrackpadInputTests: XCTestCase {
         let busy = ConflictEnvironment(trackpadTapToClick: true, threeFingerTapLookup: true, trackpadPinch: true,
                                        trackpadSmartZoom: true, trackpadRotate: true, threeFingerHorizSwipe: 2,
                                        threeFingerVertSwipe: 2, notificationCenterSwipe: true, fiveFingerPinch: true,
-                                       threeFingerDrag: true)
+                                       threeFingerDrag: true, trackpadCornerSecondaryClick: 2)
         let rows = TrackpadGestureCatalog.rows(env: busy)
-        XCTAssertEqual(rows.map(\.status), [.on, .always, .on, .always, .on, .on, .on, .on, .on, .on, .on, .on])
+        XCTAssertEqual(rows.map(\.status), [.on, .always, .on, .on, .always, .on, .on, .on, .on, .on, .on, .on, .on])
         XCTAssertEqual(rows[2].note, "Çakışır, atanırsa uyarı verilir")
-        XCTAssertEqual(TrackpadGestureCatalog.conflictCount(env: busy), 4)
+        XCTAssertEqual(rows[3].note, "Çakışır, atanırsa uyarı verilir")
+        XCTAssertEqual(TrackpadGestureCatalog.conflictCount(env: busy), 5)
         // Fare kataloğu trackpad alanlarından etkilenmez.
         XCTAssertEqual(SystemGestureCatalog.conflictCount(env: busy), 0)
     }
@@ -368,12 +376,20 @@ final class TrackpadInputTests: XCTestCase {
         XCTAssertTrue(BindingIndex(bindings: [on]).hasBindings(device: .trackpad, bundleID: nil))
     }
 
+    /// Yüzeyin ortasında `n` parmak (köşe dışı).
+    private func middle(_ n: Int) -> [TouchPoint] {
+        (0..<n).map { TouchPoint(id: Int32($0), x: 0.4 + Float($0) * 0.05, y: 0.5) }
+    }
+
     func testTrackpadPressCandidates() {
-        XCTAssertEqual(PressResolver.trackpadCandidates(fingerCount: 0, fnDown: false), [])
-        XCTAssertEqual(PressResolver.trackpadCandidates(fingerCount: 1, fnDown: false), [])
-        XCTAssertEqual(PressResolver.trackpadCandidates(fingerCount: 3, fnDown: false), [Trigger(kind: .press, fingers: 3)])
-        XCTAssertEqual(PressResolver.trackpadCandidates(fingerCount: 6, fnDown: false), [Trigger(kind: .press, fingers: 4)])
-        XCTAssertEqual(PressResolver.trackpadCandidates(fingerCount: 3, fnDown: true),
+        let c = TrackpadCornerLayout.standard
+        XCTAssertEqual(PressResolver.trackpadCandidates(fingers: [], fnDown: false, corners: c), [])
+        XCTAssertEqual(PressResolver.trackpadCandidates(fingers: middle(1), fnDown: false, corners: c), [])
+        XCTAssertEqual(PressResolver.trackpadCandidates(fingers: middle(3), fnDown: false, corners: c),
+                       [Trigger(kind: .press, fingers: 3)])
+        XCTAssertEqual(PressResolver.trackpadCandidates(fingers: middle(6), fnDown: false, corners: c),
+                       [Trigger(kind: .press, fingers: 4)])
+        XCTAssertEqual(PressResolver.trackpadCandidates(fingers: middle(3), fnDown: true, corners: c),
                        [Trigger(kind: .press, fingers: 0, modifier: .fn), Trigger(kind: .press, fingers: 3)])
     }
 

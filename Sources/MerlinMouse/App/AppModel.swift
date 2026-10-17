@@ -437,7 +437,9 @@ enum SystemCheck {
             threeFingerVertSwipe: trackpadValue("TrackpadThreeFingerVertSwipeGesture"),
             notificationCenterSwipe: trackpadValue("TrackpadTwoFingerFromRightEdgeSwipeGesture") != 0,
             fiveFingerPinch: trackpadValue("TrackpadFiveFingerPinchGesture") != 0,
-            threeFingerDrag: trackpadValue("TrackpadThreeFingerDrag") != 0)
+            threeFingerDrag: trackpadValue("TrackpadThreeFingerDrag") != 0,
+            // 0 kapalı, 1 sol alt, 2 sağ alt köşe.
+            trackpadCornerSecondaryClick: trackpadValue("TrackpadCornerSecondaryClick"))
     }
 
     static func warnings(for bindings: [GestureBinding]) -> [Warning] {

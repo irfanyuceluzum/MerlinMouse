@@ -57,6 +57,15 @@ final class Settings: ObservableObject {
     @Published var language: String { didSet { save(language, "language"); Localization.apply() } }
     /// Ana pencerede düzenlenen aygıt (üst çubuktaki seçici); aygıta bağlı sayfalar bunu izler.
     @Published var editingDevice: InputDeviceKind { didSet { save(editingDevice.rawValue, "editingDevice") } }
+    /// Trackpad köşelerinin ortak boyutu (Bölgeler › Trackpad); JSON olarak saklanır, yazarken sıkıştırılır.
+    @Published var trackpadCorners: TrackpadCornerLayout {
+        didSet {
+            // didSet içindeki atama gözlemciyi yeniden çağırmaz; sıkıştırılmış değer burada yazılır.
+            let c = trackpadCorners.clamped()
+            if c != trackpadCorners { trackpadCorners = c }
+            if let data = try? JSONEncoder().encode(c) { defaults.set(data, forKey: "trackpadCorners") }
+        }
+    }
 
     private init() {
         defaults.register(defaults: [
@@ -103,6 +112,12 @@ final class Settings: ObservableObject {
         appearance = defaults.string(forKey: "appearance") ?? "system"
         language = defaults.string(forKey: "language") ?? "system"
         editingDevice = defaults.string(forKey: "editingDevice").flatMap(InputDeviceKind.init(rawValue:)) ?? .magicMouse
+        if let data = defaults.data(forKey: "trackpadCorners"),
+           let saved = try? JSONDecoder().decode(TrackpadCornerLayout.self, from: data) {
+            trackpadCorners = saved.clamped()
+        } else {
+            trackpadCorners = .standard
+        }
         if let until = defaults.object(forKey: "pausedUntil") as? Date, until > Date() {
             pausedUntil = until
         } else {

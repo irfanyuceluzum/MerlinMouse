@@ -27,7 +27,7 @@ struct TestModePage: View {
             VStack(alignment: .leading, spacing: 20) {
                 MMPageHeader(title: L("Bölgeler"),
                              subtitle: trackpad
-                                ? L("Trackpad'deki parmakları canlı izle ve hangi hareketin tetiklendiğini dene.")
+                                ? L("Trackpad köşelerini ayarla, parmaklarını canlı gör ve hareketleri dene.")
                                 : L("Tüm bölgeleri tek haritada ayarla: sınırları ve kenar şeritlerini sürükle, parmaklarınla hemen dene."))
                 DevicePassiveBanner()
                 if !model.trusted {
@@ -136,10 +136,11 @@ struct TestModePage: View {
                 .foregroundStyle(touch != nil ? MM.text : MM.text2)
             Spacer(minLength: 8)
             if let t = touch, trackpad {
-                // Trackpad'de bölge yok: yön çevirme uygulanmaz, bölge sütununda "yüzeyde" yazar.
+                // Trackpad: yön çevirme yok; köşedeyse köşenin adı, değilse "yüzeyde".
                 Text(verbatim: "x \(pct(t.x))% · y \(pct(t.y))%")
                     .font(.system(size: 12, design: .monospaced)).foregroundStyle(MM.text2)
-                Text(L("yüzeyde")).font(.system(size: 12.5, weight: .semibold))
+                Text(s.trackpadCorners.classify(x: t.x, y: t.y)?.displayName ?? L("yüzeyde"))
+                    .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(MM.accentText)
                     .frame(minWidth: 80, alignment: .trailing)
             } else if let t = touch {

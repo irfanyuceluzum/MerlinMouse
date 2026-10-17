@@ -122,6 +122,18 @@ public struct GestureGlyph: Equatable {
         case .left: return (8, 12)
         case .right: return (20, 11)
         case .any, .center, .rear, .leftEdge, .rightEdge: return (14, 12)
+        case .cornerTopLeft, .cornerTopRight, .cornerBottomLeft, .cornerBottomRight: return cornerPoint(zone)
+        }
+    }
+
+    /// Trackpad köşesinin noktası (trackpad dönüşümünden önceki koordinatlar; köşe dışı için orta).
+    static func cornerPoint(_ zone: Zone) -> (Double, Double) {
+        switch zone {
+        case .cornerTopLeft: return (6, 4)
+        case .cornerTopRight: return (22, 4)
+        case .cornerBottomLeft: return (6, 24)
+        case .cornerBottomRight: return (22, 24)
+        default: return (14, 12)
         }
     }
 
@@ -148,6 +160,13 @@ public struct GestureGlyph: Equatable {
                 rear = true
                 dots = [GlyphDot(x: 14, y: 28, hollow: false)]
                 rings = [GlyphRing(x: 14, y: 28, radius: 6)]
+                return
+            }
+            if t.zone.isCorner {
+                // Trackpad köşesi: dolu nokta ve 5 pt halka.
+                let p = Self.cornerPoint(t.zone)
+                dots = [GlyphDot(x: p.0, y: p.1, hollow: false)]
+                rings = [GlyphRing(x: p.0, y: p.1, radius: 5)]
                 return
             }
             // Basmada yalnız sağ bölge ayrı çizilir; sol/herhangi (kullanılmaz) orta gibi.

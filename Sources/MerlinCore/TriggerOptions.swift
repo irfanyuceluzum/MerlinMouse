@@ -5,7 +5,7 @@ import Foundation
 public enum TriggerOptions {
     /// v1'de "basılı tut" arayüzde yok.
     public static let editableKinds: [GestureKind] = [.press, .tap, .doubleTap, .swipe, .pinch, .edgeSlide]
-    /// Trackpad'de yalnız 3–4 parmakla dokunma, basma ve çift dokunma atanır.
+    /// Trackpad'de 3–4 parmakla dokunma, basma ve çift dokunma ile tek parmakla köşeye basma atanır.
     public static let trackpadKinds: [GestureKind] = [.tap, .press, .doubleTap]
 
     /// Aygıtın düzenlenebilir türleri.
@@ -13,8 +13,15 @@ public enum TriggerOptions {
         device == .trackpad ? trackpadKinds : editableKinds
     }
 
+    /// Trackpad'de tek parmak yalnız köşeye basmada vardır (dokunma, dokunarak tıklamayla ayırt edilemez).
     public static func fingerChoices(kind: GestureKind, device: InputDeviceKind = .magicMouse) -> [Int] {
-        if device == .trackpad { return trackpadKinds.contains(kind) ? [3, 4] : [] }
+        if device == .trackpad {
+            switch kind {
+            case .press: return [1, 3, 4]
+            case .tap, .doubleTap: return [3, 4]
+            default: return []
+            }
+        }
         switch kind {
         case .press: return [1, 2, 3, 4]
         case .tap: return [1, 2, 3, 4]
@@ -27,10 +34,12 @@ public enum TriggerOptions {
     }
 
     /// Bölge yalnız tek parmakta ve tuşsuz tetikte seçilir; kenar şeritleri yalnız kenar kaydırmada.
-    /// Trackpad'de bölge yoktur.
+    /// Trackpad'de bölge olarak yalnız tek parmakla basmanın dört köşesi vardır (köşesiz tek parmak basma yok).
     public static func zoneChoices(kind: GestureKind, fingers: Int, modifier: PressModifier,
                                    device: InputDeviceKind = .magicMouse) -> [Zone] {
-        if device == .trackpad { return [] }
+        if device == .trackpad {
+            return kind == .press && fingers == 1 && modifier == .none ? Zone.corners : []
+        }
         if kind == .edgeSlide { return [.leftEdge, .rightEdge] }
         guard fingers == 1, modifier == .none else { return [] }
         switch kind {
@@ -51,6 +60,8 @@ public enum TriggerOptions {
     public static func sanitize(_ trigger: Trigger, device: InputDeviceKind = .magicMouse) -> Trigger {
         var t = trigger
         if device == .trackpad, !trackpadKinds.contains(t.kind) { t.kind = trackpadKinds[0] }
+        // Köşeler yalnız trackpad'dedir: fare tetiğinde "her yer"e çekilir.
+        if device == .magicMouse, t.zone.isCorner { t.zone = .any }
         if !modifierChoices(kind: t.kind, device: device).contains(t.modifier) { t.modifier = .none }
         if t.modifier != .none {
             t.fingers = 0
@@ -58,7 +69,10 @@ public enum TriggerOptions {
             return t.normalized
         }
         let fingers = fingerChoices(kind: t.kind, device: device)
-        if !fingers.isEmpty, !fingers.contains(t.fingers) { t.fingers = fingers[0] }
+        if !fingers.isEmpty, !fingers.contains(t.fingers) {
+            // Trackpad'de geçersiz parmak sayısı 3'e düşer (tek parmak yalnız bilinçli köşe seçimidir).
+            t.fingers = device == .trackpad && fingers.contains(3) ? 3 : fingers[0]
+        }
         let zones = zoneChoices(kind: t.kind, fingers: t.fingers, modifier: t.modifier, device: device)
         if zones.isEmpty {
             t.zone = .any
@@ -98,7 +112,7 @@ public enum TriggerOptions {
                 Trigger(kind: .tap, fingers: 4),
                 Trigger(kind: .press, fingers: 4),
                 Trigger(kind: .doubleTap, fingers: 4),
-            ].map { $0.normalized }
+            ].map { $0.normalized } + Zone.corners.map { Trigger(kind: .press, fingers: 1, zone: $0) }
             fallback = Trigger(kind: .tap, fingers: 3)
         } else {
             candidates = [
